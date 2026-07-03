@@ -1,0 +1,39 @@
+{
+  "name": "@lost-pets/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "fastify": "^5.0.0",
+    "@fastify/cookie": "^11.0.0",
+    "@fastify/cors": "^10.0.0",
+    "@fastify/rate-limit": "^10.0.0",
+    "@fastify/websocket": "^11.0.0",
+    "@fastify/multipart": "^9.0.0",
+    "fastify-type-provider-zod": "^4.0.0",
+    "zod": "^3.23.8",
+    "@prisma/client": "^5.19.0",
+    "argon2": "^0.41.0",
+    "pino": "^9.4.0",
+    "sharp": "^0.33.5",
+    "@aws-sdk/client-s3": "^3.632.0",
+    "@aws-sdk/s3-request-presigner": "^3.632.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "prisma": "^5.19.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5",
+    "pino-pretty": "^11.2.2"
+  }
+}
