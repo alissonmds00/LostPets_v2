@@ -34,7 +34,7 @@
         "Pesquisa prática de mercado específica para Fastify (hooks/decorators de autenticação) via WebSearch",
         "Identifica a decisão genuinamente em aberto (ex: onde/como expor requireAuth e requireRole, decorator vs hook) e pergunta sobre isso",
         "Não implementa o middleware antes de obter resposta do usuário sobre a decisão em aberto identificada",
-        "Considera/reutiliza a classe UnauthorizedError já existente em shared/errors em vez de inventar um novo formato de erro"
+        "Considera/reutiliza a classe UnauthorizedError já existente em infra/errors em vez de inventar um novo formato de erro"
       ]
     }
   ]

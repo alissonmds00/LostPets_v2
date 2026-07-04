@@ -45,7 +45,7 @@ Ao criar uma rota nova:
 2. A rota importa esses schemas e os registra no Fastify via `fastify-type-provider-zod`, chamando
    o usecase correspondente dentro do handler (ver skill `usecase`) — nunca um service ou
    repository diretamente.
-3. Erros lançados seguem `AppError` (`shared/errors`), nunca um formato novo.
+3. Erros lançados seguem `AppError` (`infra/errors`), nunca um formato novo.
 4. `summary`/`description`/`tags` da rota (documentação no Swagger) vão inline no mesmo `schema:
    {...}` da rota, ao lado de `body`/`response` — ver skill `swagger`.
 

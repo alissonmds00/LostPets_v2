@@ -27,10 +27,10 @@ description: >
     quando "não achou" é um resultado válido, não um erro (ex: checar se um e-mail já está em
     uso).
   - `getX` (ex: `getById`) — quem chama já assume que o registro deveria existir; lança
-    `NotFoundError` (`shared/errors`) se não achar, em vez de devolver `null`.
+    `NotFoundError` (`infra/errors`) se não achar, em vez de devolver `null`.
 - **Erros específicos do Prisma são traduzidos aqui, nunca vazam pra fora.** Ex: capturar
   `PrismaClientKnownRequestError` com `code === 'P2002'` (violação de unique constraint) e lançar
-  um `ConflictError` (`shared/errors`) no lugar. Isso é consequência direta da regra acima — se o
+  um `ConflictError` (`infra/errors`) no lugar. Isso é consequência direta da regra acima — se o
   service precisasse tratar um erro do Prisma, ele estaria conhecendo o Prisma, o que quebraria "só
   o repository fala com o Prisma".
 - Convenção de nome: `<módulo>.repository.ts`, classe `<Módulo>Repository`.
