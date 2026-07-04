@@ -31,10 +31,13 @@ description: >
   exemplo disso hoje (ver "Migração aplicada").
 - Gateways moram em `apps/api/src/gateways/`, um nível acima de `modules/` — não pertencem a um
   módulo específico, mesmo que hoje só um módulo os use.
-- Convenção de nome: `<serviço>.gateway.service.ts`, classe `<Serviço>Gateway` (ex: `storage.gateway.service.ts` →
-  `StorageGateway`). Quando há mais de um provedor real (exceção acima), cada um vira
-  `<provedor>-<serviço>.gateway.service.ts` (ex: `local-storage.gateway.service.ts`, `s3-storage.gateway.service.ts`), e o
-  arquivo `<serviço>.gateway.service.ts` original vira a fábrica que escolhe entre eles.
+- Convenção de nome: `<serviço>.gateway.service.ts`, classe `<Serviço>GatewayService` (ex:
+  `storage.gateway.service.ts` → `StorageGatewayService`). Quando há mais de um provedor real
+  (exceção acima), cada um vira `<provedor>-<serviço>.gateway.service.ts` (ex:
+  `local-storage.gateway.service.ts`, `s3-storage.gateway.service.ts`), e o arquivo
+  `<serviço>.gateway.service.ts` original vira a fábrica que escolhe entre eles. O nome da classe é
+  sempre a conversão do nome do arquivo inteiro pra PascalCase, sem descartar o segmento
+  `.service` — ver skill `class-naming` pra regra geral (vale também pra `repository` e `service`).
 - Só o **service** chama um gateway — nunca a rota, nunca o usecase diretamente, nunca o
   repository. Isso espelha a regra do repository: quem orquestra acesso a dado (interno ou
   externo) é o service.
@@ -49,8 +52,8 @@ estrutural (union type), simples o bastante pra dois provedores sem precisar dec
 **Cuidado ao aplicar a exceção:** "ambiente diferente" não é sinônimo de "provedor diferente".
 LocalStack (dev) e o SQS real da AWS (prod) usam o mesmo SDK e protocolo (`@aws-sdk/client-sqs`) —
 só o endpoint muda via env (`SQS_ENDPOINT`, ausente em prod). Isso é o caso **default** (uma classe
-só, `PetsRegistrationQueueGateway`), não a exceção — diferente de `storage`, onde disco local e S3
-são protocolos genuinamente diferentes (sistema de arquivos vs API HTTP).
+só, `PetsRegistrationQueueGatewayService`), não a exceção — diferente de `storage`, onde disco
+local e S3 são protocolos genuinamente diferentes (sistema de arquivos vs API HTTP).
 
 **Verificado com base em:** o padrão de **Gateway** (Martin Fowler, Patterns of Enterprise
 Application Architecture) — um objeto que encapsula acesso a um sistema externo, contendo só a
@@ -61,35 +64,41 @@ negócio.
 
 O `StorageProvider` (`shared/storage/`, interface + `LocalStorageProvider`/`S3StorageProvider`)
 existia antes dessa decisão e foi consolidado em `gateways/storage.gateway.service.ts` como uma única
-classe `StorageGateway`, que decidia local-disco vs S3 internamente por `env.STORAGE_DRIVER` — sem
-interface. `shared/storage/` foi removido.
+classe `StorageGatewayService`, que decidia local-disco vs S3 internamente por `env.STORAGE_DRIVER`
+— sem interface. `shared/storage/` foi removido.
 
 Essa decisão foi reaberta em seguida: `storage` genuinamente tem dois provedores reais e
 concretos (disco local em dev, S3 em prod), não um hipotético — então virou a exceção descrita
 acima. Hoje:
-- `gateways/local-storage.gateway.service.ts` → `LocalStorageGateway`.
-- `gateways/s3-storage.gateway.service.ts` → `S3StorageGateway`.
+- `gateways/local-storage.gateway.service.ts` → `LocalStorageGatewayService`.
+- `gateways/s3-storage.gateway.service.ts` → `S3StorageGatewayService`.
 - `gateways/storage.gateway.service.ts` → só a função `createStorageGateway(env)`, que escolhe uma das duas
-  por `env.STORAGE_DRIVER` e devolve o tipo `StorageGateway = LocalStorageGateway |
-  S3StorageGateway` (union, sem `interface` declarada).
+  por `env.STORAGE_DRIVER` e devolve o tipo `StorageGateway = LocalStorageGatewayService |
+  S3StorageGatewayService` (union, sem `interface` declarada).
 - `read()` (leitura crua de disco, usada só pela rota estática dev-only) existe **apenas** em
-  `LocalStorageGateway` — não foi replicado em `S3StorageGateway` só pra bater a forma, porque S3
-  genuinamente não serve esse caso (ver skill `exception-handler`: nunca force um método que lança
-  "not supported" só pra imitar uma interface).
+  `LocalStorageGatewayService` — não foi replicado em `S3StorageGatewayService` só pra bater a
+  forma, porque S3 genuinamente não serve esse caso (ver skill `exception-handler`: nunca force um
+  método que lança "not supported" só pra imitar uma interface).
 
-`gateways/pets-registration-queue.gateway.service.ts` → `PetsRegistrationQueueGateway` (registrado
-em 2026-07-04): fila SQS pro cadastro de pet (evita perda de cadastro por sobrecarga do banco —
-rota enfileira e responde, um consumidor assíncrono persiste depois; desenho do consumidor
-adiado pra Fase 2, ver PLAN.md). Segue o **default** (classe única, sem interface) — não a exceção
-de `storage` — porque LocalStack e o SQS real são o mesmo protocolo, só o endpoint muda (ver
-"Cuidado ao aplicar a exceção" acima).
+`gateways/pets-registration-queue.gateway.service.ts` → `PetsRegistrationQueueGatewayService`
+(registrado em 2026-07-04): fila SQS pro cadastro de pet (evita perda de cadastro por sobrecarga
+do banco — rota enfileira e responde, um consumidor assíncrono persiste depois; desenho do
+consumidor adiado pra Fase 2, ver PLAN.md). Segue o **default** (classe única, sem interface) — não
+a exceção de `storage` — porque LocalStack e o SQS real são o mesmo protocolo, só o endpoint muda
+(ver "Cuidado ao aplicar a exceção" acima).
+
+**Nota (registrada em 2026-07-04):** os nomes de classe acima (`StorageGatewayService`,
+`LocalStorageGatewayService`, `S3StorageGatewayService`, `PetsRegistrationQueueGatewayService`)
+refletem a convenção de nome-de-classe-espelha-nome-de-arquivo decidida na skill `class-naming` —
+antes dessa decisão, essas classes eram nomeadas `StorageGateway`, `LocalStorageGateway`,
+`S3StorageGateway` e `PetsRegistrationQueueGateway` (descartando o segmento `.service` do arquivo).
 
 ## Como aplicar
 
 Ao integrar um serviço externo novo:
-1. Crie `apps/api/src/gateways/<serviço>.gateway.service.ts` com uma classe `<Serviço>Gateway` — métodos
-   que refletem o que o domínio precisa fazer (ex: `send`, `charge`), não os endpoints crus da API
-   externa.
+1. Crie `apps/api/src/gateways/<serviço>.gateway.service.ts` com uma classe
+   `<Serviço>GatewayService` — métodos que refletem o que o domínio precisa fazer (ex: `send`,
+   `charge`), não os endpoints crus da API externa.
 2. A classe recebe config/credenciais (via `Env`) e traduz entre o formato do domínio e o formato
    exigido pelo serviço externo — nada de decisão de negócio aqui dentro.
 3. Só o service do módulo que precisa dessa integração importa e chama o gateway.

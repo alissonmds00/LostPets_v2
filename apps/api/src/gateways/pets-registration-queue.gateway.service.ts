@@ -4,7 +4,7 @@ import type { Env } from '../shared/config/env.js';
 // LocalStack (dev) and real SQS (prod) speak the same protocol through the
 // same SDK client — only the endpoint changes — so this stays a single
 // concrete class, following the gateway default (see skill `gateway`).
-export class PetsRegistrationQueueGateway {
+export class PetsRegistrationQueueGatewayService {
   private readonly client: SQSClient;
   private readonly queueUrl: string;
 
