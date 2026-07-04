@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../../src/infra/db/prisma.js';
-import { hashPassword } from '../../../src/infra/password.js';
+import { hashPassword, verifyPassword } from '../../../src/infra/password.js';
 import { IdentityRepository } from '../../../src/modules/identity/identity.repository.js';
 import { IdentityService } from '../../../src/modules/identity/identity.service.js';
-import { UnauthorizedError } from '../../../src/infra/errors/app-error.js';
+import { ConflictError, UnauthorizedError } from '../../../src/infra/errors/app-error.js';
 
 describe('IdentityService', () => {
   // Repository injected via constructor (see the dependency-injection
@@ -12,28 +12,74 @@ describe('IdentityService', () => {
   // "no mocking a collaborator" rule for service tests.
   const repository = new IdentityRepository();
   const service = new IdentityService(repository, 7);
-  let userId: string;
-  let userEmail: string;
-  const plainPassword = 'correct-horse-battery-staple';
-
-  beforeEach(async () => {
-    userEmail = `${randomUUID()}@example.com`;
-    const user = await prisma.user.create({
-      data: {
-        email: userEmail,
-        passwordHash: await hashPassword(plainPassword),
-        name: 'Test User',
-      },
-    });
-    userId = user.id;
-  });
+  // Scoped to exactly the emails each test creates rather than a broad
+  // `contains: '@example.com'` match — this suite runs concurrently with
+  // other test files (e.g. identity.repository.test.ts) against the same
+  // database via the shared prisma singleton, and a broad delete would
+  // race-delete fixtures another file's test is still using.
+  const createdEmails: string[] = [];
 
   afterEach(async () => {
-    await prisma.session.deleteMany({ where: { userId } });
-    await prisma.user.deleteMany({ where: { id: userId } });
+    await prisma.user.deleteMany({ where: { email: { in: createdEmails.splice(0) } } });
+  });
+
+  describe('registerUser', () => {
+    it('creates a user with the password hashed, never returning the plain password or hash', async () => {
+      const email = `${randomUUID()}@example.com`;
+      createdEmails.push(email);
+
+      const user = await service.registerUser({
+        email,
+        password: 'correct horse battery',
+        name: 'Jane',
+      });
+
+      expect(user.email).toBe(email);
+      expect(user.name).toBe('Jane');
+      expect(user.role).toBe('USER');
+      expect(user).not.toHaveProperty('password');
+      expect(user).not.toHaveProperty('passwordHash');
+
+      const stored = await prisma.user.findUniqueOrThrow({ where: { email } });
+      expect(stored.passwordHash).not.toBe('correct horse battery');
+      await expect(verifyPassword(stored.passwordHash, 'correct horse battery')).resolves.toBe(
+        true,
+      );
+    });
+
+    it('throws ConflictError when the email is already registered', async () => {
+      const email = `${randomUUID()}@example.com`;
+      createdEmails.push(email);
+      await service.registerUser({ email, password: 'correct horse battery', name: 'Jane' });
+
+      await expect(
+        service.registerUser({ email, password: 'another password', name: 'Jane Two' }),
+      ).rejects.toThrow(ConflictError);
+    });
   });
 
   describe('login', () => {
+    let userId: string;
+    let userEmail: string;
+    const plainPassword = 'correct-horse-battery-staple';
+
+    beforeEach(async () => {
+      userEmail = `${randomUUID()}@example.com`;
+      const user = await prisma.user.create({
+        data: {
+          email: userEmail,
+          passwordHash: await hashPassword(plainPassword),
+          name: 'Test User',
+        },
+      });
+      userId = user.id;
+    });
+
+    afterEach(async () => {
+      await prisma.session.deleteMany({ where: { userId } });
+      await prisma.user.deleteMany({ where: { id: userId } });
+    });
+
     it('creates a session and returns the safe user when credentials are correct', async () => {
       const result = await service.login({ email: userEmail, password: plainPassword });
 

@@ -1,11 +1,37 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../infra/db/prisma.js';
-import type { SessionWithUserDto, UserDto } from './identity.dto.js';
+import { ConflictError } from '../../infra/errors/app-error.js';
+import type {
+  CreateUserDto,
+  SessionWithUserDto,
+  UserDto,
+  UserWithPasswordDto,
+} from './identity.dto.js';
 
 export class IdentityRepository {
+  // Doesn't pre-check email uniqueness with a separate lookup (findByEmail then
+  // create) — that's a check-then-act race under concurrent requests. Instead
+  // this relies on the DB's own unique constraint and translates Prisma's
+  // P2002 (unique violation) into a ConflictError, same as the repository
+  // skill's not-found translation convention.
+  async createUser(user: CreateUserDto): Promise<UserDto> {
+    try {
+      return await prisma.user.create({
+        data: { email: user.email, passwordHash: user.passwordHash, name: user.name },
+        select: { id: true, email: true, name: true, role: true, createdAt: true },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictError('E-mail já cadastrado');
+      }
+      throw error;
+    }
+  }
+
   // A login attempt against a nonexistent email is a valid outcome, not an
   // error — findX (null), not getX (NotFoundError). Includes `passwordHash`
   // since the service needs it to verify the login attempt.
-  async findByEmail(email: string): Promise<UserDto | null> {
+  async findByEmail(email: string): Promise<UserWithPasswordDto | null> {
     return prisma.user.findUnique({ where: { email } });
   }
 

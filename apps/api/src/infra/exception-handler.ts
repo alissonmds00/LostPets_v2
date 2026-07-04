@@ -32,12 +32,12 @@ export function formatErrorResponse(error: unknown): ErrorResponse {
     };
   }
 
-  // fastify-type-provider-zod's validatorCompiler doesn't throw a raw ZodError
-  // for a request body/params/querystring that fails schema validation — it
-  // wraps each Zod issue into Fastify's own `error.validation` array (see
-  // hasZodFastifySchemaValidationErrors), which is what actually reaches this
-  // handler on an invalid request body. Same 400 shape as the ZodError branch
-  // above, just recognizing the wrapped form.
+  // fastify-type-provider-zod's validatorCompiler (v4) never throws a raw
+  // ZodError for a request body/params/querystring/headers failure — it
+  // returns a Fastify FST_ERR_VALIDATION error carrying a `.validation` array
+  // instead (the ZodError branch above only ever catches a ZodError thrown
+  // directly by application code, not by Fastify's schema validation). This
+  // is the library's own documented type guard for that case.
   if (hasZodFastifySchemaValidationErrors(error)) {
     return {
       statusCode: 400,

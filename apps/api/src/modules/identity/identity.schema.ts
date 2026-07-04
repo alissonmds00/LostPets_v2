@@ -17,11 +17,39 @@ export const sessionWithUserSchema = z.object({
   }),
 });
 
+// POST /register request body.
+export const registerUserBodySchema = z.object({
+  email: z.string().email().describe('Endereço de e-mail do usuário, precisa ser único'),
+  password: z.string().min(8).describe('Senha em texto plano, com no mínimo 8 caracteres'),
+  name: z.string().min(1).describe('Nome completo do usuário'),
+});
+
+// Safe user shape for API responses — never includes `passwordHash`. This is
+// the general-purpose "safe user" projection (register's response, and
+// anywhere else a route needs to serialize a user).
+export const userResponseSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  name: z.string(),
+  role: z.enum(['USER', 'ADMIN']),
+  createdAt: z.date(),
+});
+
+// What the repository needs to create a `User` row — already-hashed
+// password, never the plain-text one (hashing happens in the service, not
+// here). Not a request/response body schema, but still derived via Zod per
+// the dto skill (every DTO is z.infer of a schema, never hand-written).
+export const createUserSchema = z.object({
+  email: z.string().email(),
+  passwordHash: z.string(),
+  name: z.string().min(1),
+});
+
 // Full user row as the repository reads it, including `passwordHash` — this
 // is the internal shape used by IdentityRepository.findByEmail so the service
 // can verify a login attempt's password. Never returned to a route/client as
 // is; the service/usecase strip `passwordHash` before building a response.
-export const userSchema = z.object({
+export const userWithPasswordSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
   passwordHash: z.string(),

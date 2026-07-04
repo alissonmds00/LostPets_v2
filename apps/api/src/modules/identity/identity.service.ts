@@ -1,7 +1,12 @@
 import { UnauthorizedError } from '../../infra/errors/app-error.js';
-import { verifyPassword } from '../../infra/password.js';
+import { hashPassword, verifyPassword } from '../../infra/password.js';
 import type { IdentityRepository } from './identity.repository.js';
-import type { LoginBodyDto, LoginResultDto } from './identity.dto.js';
+import type {
+  LoginBodyDto,
+  LoginResultDto,
+  RegisterUserInputDto,
+  UserDto,
+} from './identity.dto.js';
 
 export class IdentityService {
   // Repository injected via constructor — the single instance is built once
@@ -12,8 +17,15 @@ export class IdentityService {
     private readonly sessionTtlDays: number,
   ) {}
 
-  // One service per module (see the `service` skill) — register's logic
-  // will land here too, as another method on this same class.
+  async registerUser(input: RegisterUserInputDto): Promise<UserDto> {
+    const passwordHash = await hashPassword(input.password);
+    return this.repository.createUser({
+      email: input.email,
+      passwordHash,
+      name: input.name,
+    });
+  }
+
   async login(credentials: LoginBodyDto): Promise<LoginResultDto> {
     const user = await this.repository.findByEmail(credentials.email);
     if (!user) throw new UnauthorizedError('Credenciais inválidas');
