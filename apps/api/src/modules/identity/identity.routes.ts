@@ -1,7 +1,9 @@
+import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { Env } from '../../infra/config/env.js';
 import { loginUsecase } from '../../usecases/login.usecase.js';
+import { logoutUsecase } from '../../usecases/logout.usecase.js';
 import { registerUserUsecase } from '../../usecases/register-user.usecase.js';
 import {
   loginBodySchema,
@@ -11,8 +13,8 @@ import {
 } from './identity.schema.js';
 
 // Session infra (password hashing, session repository, requireAuth/requireRole
-// decorators — see auth.ts) is already built. logout/me are separate tasks
-// built on top of this, see PLAN.md phase 1.
+// decorators — see auth.ts) is already built. `me` is a separate task built
+// on top of this, see PLAN.md phase 1.
 export async function identityModule(
   app: FastifyInstance,
   opts: FastifyPluginOptions & { env: Env },
@@ -84,6 +86,33 @@ export async function identityModule(
       });
 
       return reply.send({ user: result.user });
+    },
+  );
+
+  app.withTypeProvider<ZodTypeProvider>().post(
+    '/logout',
+    {
+      // Requires a valid session (see the auth-middleware skill) — logout
+      // needs `request.sessionId`, attached by requireAuth alongside
+      // `request.user`, to know exactly which session row to delete.
+      preHandler: (request, reply) => app.requireAuth(request, reply),
+      schema: {
+        summary: 'Encerra a sessão do usuário autenticado',
+        description:
+          'Apaga a sessão correspondente ao cookie enviado e limpa o cookie. Retorna 401 se não houver sessão válida.',
+        tags: ['identity'],
+        response: { 204: z.null() },
+      },
+    },
+    async (request, reply) => {
+      // request.sessionId is always set here: requireAuth (preHandler above)
+      // throws UnauthorizedError before the handler runs if it couldn't
+      // resolve a valid session, so this route body only ever executes with
+      // a session id already attached.
+      await logoutUsecase(app.identityService, request.sessionId!);
+
+      reply.clearCookie(cookieName, { path: '/' });
+      reply.status(204).send(null);
     },
   );
 }

@@ -7,6 +7,12 @@ import type { AuthenticatedUserDto } from '../modules/identity/identity.dto.js';
 declare module 'fastify' {
   interface FastifyRequest {
     user?: AuthenticatedUserDto;
+    // Id of the session validated by requireAuth. request.user only carries
+    // the authenticated user's own data (see AuthenticatedUserDto), not which
+    // session authenticated it — logout needs the session id itself (to
+    // delete that exact row via IdentityRepository.deleteById), so it's
+    // attached here as its own field rather than folded into `user`.
+    sessionId?: string;
   }
 
   interface FastifyInstance {
@@ -56,6 +62,7 @@ export const authPlugin = fp(
       if (!session) throw new UnauthorizedError();
 
       request.user = session.user;
+      request.sessionId = session.id;
     });
 
     app.decorate('requireRole', (role: AuthenticatedUserDto['role']) => {

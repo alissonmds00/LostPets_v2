@@ -113,4 +113,37 @@ describe('IdentityService', () => {
       expect(after).toBe(before);
     });
   });
+
+  describe('logout', () => {
+    let userId: string;
+
+    beforeEach(async () => {
+      const user = await prisma.user.create({
+        data: {
+          email: `${randomUUID()}@example.com`,
+          passwordHash: 'irrelevant-for-this-test',
+          name: 'Test User',
+        },
+      });
+      userId = user.id;
+    });
+
+    afterEach(async () => {
+      await prisma.session.deleteMany({ where: { userId } });
+      await prisma.user.deleteMany({ where: { id: userId } });
+    });
+
+    it('deletes the session identified by sessionId', async () => {
+      const session = await repository.create(userId, new Date(Date.now() + 60_000));
+
+      await service.logout(session.id);
+
+      const found = await repository.findValidById(session.id);
+      expect(found).toBeNull();
+    });
+
+    it('does not throw when the session does not exist', async () => {
+      await expect(service.logout(randomUUID())).resolves.not.toThrow();
+    });
+  });
 });
