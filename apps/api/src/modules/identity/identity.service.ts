@@ -1,9 +1,9 @@
 import { hashPassword } from '../../infra/password.js';
-import { IdentityRepository } from './identity.repository.js';
+import type { IdentityRepository } from './identity.repository.js';
 import type { RegisterUserInputDto, UserDto } from './identity.dto.js';
 
 export class IdentityService {
-  private readonly repository = new IdentityRepository();
+  constructor(private readonly repository: IdentityRepository) {}
 
   async registerUser(input: RegisterUserInputDto): Promise<UserDto> {
     const passwordHash = await hashPassword(input.password);

@@ -42,7 +42,7 @@ export function formatErrorResponse(error: unknown): ErrorResponse {
     return {
       statusCode: 400,
       body: {
-        error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.validation },
+        error: { code: 'VALIDATION_ERROR', message: 'Dados inválidos', details: error.validation },
       },
     };
   }

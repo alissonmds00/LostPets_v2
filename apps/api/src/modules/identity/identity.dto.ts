@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import type {
+  createUserSchema,
   registerUserBodySchema,
   sessionWithUserSchema,
   userResponseSchema,
@@ -19,8 +20,4 @@ export type UserDto = z.infer<typeof userResponseSchema>;
 
 // What the repository needs to create a `User` row — already-hashed password,
 // never the plain-text one (hashing happens in the service, not here).
-export type CreateUserDto = {
-  email: string;
-  passwordHash: string;
-  name: string;
-};
+export type CreateUserDto = z.infer<typeof createUserSchema>;

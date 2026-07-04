@@ -16,15 +16,14 @@ import { formatErrorResponse } from './infra/exception-handler.js';
 import { authPlugin } from './infra/auth.js';
 import { identityModule } from './modules/identity/identity.routes.js';
 import { IdentityRepository } from './modules/identity/identity.repository.js';
+import { IdentityService } from './modules/identity/identity.service.js';
 
 // Module augmentation for the decorators added below — same technique used
 // in infra/auth.ts for requireAuth/requireRole.
 declare module 'fastify' {
   interface FastifyInstance {
     identityRepository: IdentityRepository;
-    // identityService will be decorated here the same way once
-    // identity.service.ts exists (register/login are still separate, open
-    // PRs at the time this was written).
+    identityService: IdentityService;
   }
 }
 
@@ -91,9 +90,8 @@ export function buildApp(env: Env) {
   // to the parent instead of down to children).
   const identityRepository = new IdentityRepository();
   app.decorate('identityRepository', identityRepository);
-  // identityService will be instantiated (with identityRepository injected
-  // into its constructor) and decorated here the same way once
-  // identity.service.ts exists.
+  const identityService = new IdentityService(identityRepository);
+  app.decorate('identityService', identityService);
 
   // Registered at root (not nested inside identityModule's own
   // app.register(...) below) so requireAuth/requireRole are visible to every

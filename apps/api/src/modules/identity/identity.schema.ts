@@ -32,3 +32,13 @@ export const userResponseSchema = z.object({
   role: z.enum(['USER', 'ADMIN']),
   createdAt: z.date(),
 });
+
+// What the repository needs to create a `User` row — already-hashed
+// password, never the plain-text one (hashing happens in the service, not
+// here). Not a request/response body schema, but still derived via Zod per
+// the dto skill (every DTO is z.infer of a schema, never hand-written).
+export const createUserSchema = z.object({
+  email: z.string().email(),
+  passwordHash: z.string(),
+  name: z.string().min(1),
+});

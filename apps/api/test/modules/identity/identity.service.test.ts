@@ -1,12 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../../src/infra/db/prisma.js';
+import { IdentityRepository } from '../../../src/modules/identity/identity.repository.js';
 import { IdentityService } from '../../../src/modules/identity/identity.service.js';
 import { verifyPassword } from '../../../src/infra/password.js';
 import { ConflictError } from '../../../src/infra/errors/app-error.js';
 
 describe('IdentityService', () => {
-  const service = new IdentityService();
+  // Real repository (against real Postgres), constructor-injected per the
+  // dependency-injection skill — the service never instantiates its own
+  // repository.
+  const service = new IdentityService(new IdentityRepository());
   // Scoped to exactly the emails each test creates rather than a broad
   // `contains: '@example.com'` match — this suite runs concurrently with
   // other test files (e.g. identity.repository.test.ts) against the same

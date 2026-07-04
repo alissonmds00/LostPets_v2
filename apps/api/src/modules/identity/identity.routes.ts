@@ -1,14 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { registerUserBodySchema, userResponseSchema } from './identity.schema.js';
-import { RegisterUserUsecase } from '../../usecases/register-user.usecase.js';
+import { registerUserUsecase } from '../../usecases/register-user.usecase.js';
 
 // Session infra (password hashing, session repository, requireAuth/requireRole
 // decorators — see auth.ts) is already built. login/logout/me are separate
 // tasks built on top of this, see PLAN.md phase 1.
 export async function identityModule(app: FastifyInstance): Promise<void> {
-  const registerUserUsecase = new RegisterUserUsecase();
-
   app.withTypeProvider<ZodTypeProvider>().post(
     '/register',
     {
@@ -32,7 +30,7 @@ export async function identityModule(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
-      const user = await registerUserUsecase.execute(request.body);
+      const user = await registerUserUsecase(app.identityService, request.body);
       reply.status(201).send(user);
     },
   );

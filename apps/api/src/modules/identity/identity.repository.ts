@@ -17,7 +17,7 @@ export class IdentityRepository {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictError('Email already registered');
+        throw new ConflictError('E-mail já cadastrado');
       }
       throw error;
     }
