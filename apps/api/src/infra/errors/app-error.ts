@@ -14,18 +14,18 @@ export class AppError extends Error {
 
 export class NotFoundError extends AppError {
   constructor(resource: string) {
-    super(404, 'NOT_FOUND', `${resource} not found`);
+    super(404, 'NOT_FOUND', `${resource} não encontrado`);
   }
 }
 
 export class UnauthorizedError extends AppError {
-  constructor(message = 'Authentication required') {
+  constructor(message = 'Autenticação necessária') {
     super(401, 'UNAUTHORIZED', message);
   }
 }
 
 export class ForbiddenError extends AppError {
-  constructor(message = 'Not allowed to perform this action') {
+  constructor(message = 'Não permitido realizar esta ação') {
     super(403, 'FORBIDDEN', message);
   }
 }
