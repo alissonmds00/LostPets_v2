@@ -45,3 +45,13 @@ export const loginResponseSchema = z.object({
     role: z.enum(['USER', 'ADMIN']),
   }),
 });
+
+// Internal result of IdentityService.login — not a wire schema itself (no
+// route serializes this exact shape directly), composed from the session and
+// safe-user shapes above. The usecase reads `session` to set the cookie and
+// `user` to build the login response. Every DTO derives from a Zod schema
+// (see the `dto` skill), even internal/non-wire shapes like this one.
+export const loginResultSchema = z.object({
+  session: sessionWithUserSchema.pick({ id: true, userId: true, expiresAt: true, createdAt: true }),
+  user: sessionWithUserSchema.shape.user,
+});
