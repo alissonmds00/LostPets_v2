@@ -1,8 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 
-// Scaffolding only — see PLAN.md, phase 1 (identity), for what belongs here:
-// register/login/logout routes, session cookie issuance, password hashing,
-// current-user route, role checks.
-export async function identityModule(app: FastifyInstance): Promise<void> {
-  app.get('/ping', async () => ({ module: 'identity', status: 'not implemented yet' }));
-}
+// Session infra (password hashing, session repository, requireAuth/requireRole
+// decorators — see auth.ts) is already built. Routes themselves — register,
+// login, logout, me — are separate tasks built on top of this, see PLAN.md
+// phase 1.
+export async function identityModule(_app: FastifyInstance): Promise<void> {}

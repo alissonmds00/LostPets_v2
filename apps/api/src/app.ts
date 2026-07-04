@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import type { Env } from './infra/config/env.js';
 import { formatErrorResponse } from './infra/exception-handler.js';
 import { identityModule } from './modules/identity/index.js';
+import { authPlugin } from './modules/identity/auth.js';
 
 // Access log for every request (method/url/status/duration/request-id), on top
 // of Fastify's built-in "incoming request"/"request completed" hooks. Explicit
@@ -65,6 +66,13 @@ export function buildApp(env: Env) {
   }
 
   app.get('/health', async () => ({ status: 'ok' }));
+
+  // Registered at root (not nested inside identityModule's own
+  // app.register(...) below) so requireAuth/requireRole are visible to every
+  // module registered as a sibling here — pets/messaging/moderation routes
+  // need them too, not just identity's own routes. See auth.ts for the
+  // Fastify-encapsulation reasoning.
+  app.register(authPlugin, { env });
 
   // Each module owns its own routes/service/repository and only reaches into
   // its own Prisma models. Cross-module calls go through another module's
