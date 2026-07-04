@@ -7,7 +7,7 @@ Roteiro para retomar a implementação em uma sessão futura. Ver [ARCHITECTURE.
 - [x] Monorepo com npm workspaces (`apps/api`, `apps/web`)
 - [x] Fastify + Zod + Prisma configurados e validados (`/health` respondendo, migration `init` aplicada)
 - [x] Módulos `identity/pets/messaging/moderation` como pastas com fronteira definida
-- [x] `shared/config`, `shared/errors`, `shared/db` implementados; `gateways/storage.gateway.ts` (local + S3) implementado
+- [x] `shared/config`, `shared/errors`, `shared/db` implementados; `gateways/storage.gateway.service.ts` (local + S3) implementado
 - [x] docker-compose (Postgres na porta host `5433` — 5432 pode estar ocupado por um Postgres nativo local)
 - [x] Vitest configurado, 1 teste passando (`test/health.test.ts`)
 - [x] ESLint + Prettier na raiz

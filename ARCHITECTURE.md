@@ -16,7 +16,7 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
 | Autenticação | Cookie de sessão httpOnly (`@fastify/cookie`), tabela `sessions` no Postgres, hash de senha com `argon2` | mais seguro contra XSS que JWT em localStorage; sem lógica de refresh token no frontend |
 | Autorização | Campo `role` no usuário (`USER` / `ADMIN`) | suficiente para moderação, sem RBAC complexo |
 | Mensagens diretas | WebSocket via `@fastify/websocket`, atrelada a um anúncio | usuário optou por tempo real; sem etapa de aprovação prévia (avaliado e recusado conscientemente) |
-| Fotos | Gateway `StorageGateway` (`gateways/storage.gateway.ts`), decide local (dev) vs S3 (prod via `@aws-sdk/client-s3`) internamente por `STORAGE_DRIVER` | mantém a app "pronta para AWS" sem acoplar no S3 agora |
+| Fotos | Gateway `createStorageGateway` (`gateways/storage.gateway.service.ts`), escolhe `LocalStorageGateway` (dev) vs `S3StorageGateway` (prod via `@aws-sdk/client-s3`) por `STORAGE_DRIVER` | mantém a app "pronta para AWS" sem acoplar no S3 agora |
 | Upload de foto | Validação de tipo/tamanho + geração de thumbnail (`sharp`) | decisão consciente de aceitar a complexidade extra |
 | Geolocalização | lat/lng + fórmula de distância direto na query SQL, sem PostGIS | mantido simples deliberadamente |
 | Exclusão | Soft delete (`deletedAt`) em usuários e anúncios | denúncias/moderação precisam referenciar anúncios mesmo depois de removidos |
