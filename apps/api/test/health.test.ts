@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
-import type { Env } from '../src/shared/config/env.js';
+import type { Env } from '../src/infra/config/env.js';
 
 const testEnv: Env = {
   NODE_ENV: 'test',

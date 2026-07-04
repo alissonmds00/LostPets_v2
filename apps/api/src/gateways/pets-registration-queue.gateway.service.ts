@@ -1,5 +1,5 @@
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
-import type { Env } from '../shared/config/env.js';
+import type { Env } from '../infra/config/env.js';
 
 // LocalStack (dev) and real SQS (prod) speak the same protocol through the
 // same SDK client — only the endpoint changes — so this stays a single

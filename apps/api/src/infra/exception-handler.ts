@@ -1,5 +1,5 @@
 import { ZodError } from 'zod';
-import { AppError } from '../errors/app-error.js';
+import { AppError } from './errors/app-error.js';
 
 export interface ErrorResponse {
   statusCode: number;

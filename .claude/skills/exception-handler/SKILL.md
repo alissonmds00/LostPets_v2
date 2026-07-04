@@ -18,7 +18,7 @@ Três princípios, nessa ordem de importância:
 
 1. **Centralize o tratamento, descentralize a criação.** O erro é criado onde a regra de negócio
    acontece — no módulo. Mas todo erro é capturado num único lugar: o exception handler global
-   ([`formatErrorResponse`](../../../apps/api/src/shared/infra/exception-handler.ts), registrado
+   ([`formatErrorResponse`](../../../apps/api/src/infra/exception-handler.ts), registrado
    via `app.setErrorHandler(...)` em [`app.ts`](../../../apps/api/src/app.ts)). Esse handler **já
    existe e não muda** — nenhum erro novo exige tocar nele.
 2. **Herança com `instanceof`.** Toda classe de erro estende `AppError`. É isso que permite o
@@ -29,20 +29,21 @@ Três princípios, nessa ordem de importância:
    tipa e narrowa melhor assim, e o stack trace fica correto (apontando pra onde o erro realmente
    aconteceu, não pra dentro do handler genérico).
 
-**Onde cada coisa mora dentro de `shared/`** (decentralização da criação, aplicada):
-- `shared/errors/` guarda só as **classes** de erro gerais da aplicação (`AppError` e os genéricos
+**Onde cada coisa mora dentro de `infra/`** (decentralização da criação, aplicada):
+- `infra/errors/` guarda só as **classes** de erro gerais da aplicação (`AppError` e os genéricos
   `NotFoundError`, `UnauthorizedError`, `ForbiddenError`, `ConflictError`) — nenhuma lógica de
   Fastify aqui, só as classes em si.
-- `shared/infra/` guarda a camada de infraestrutura — hoje, o exception handler global
-  (`exception-handler.ts`, a função `formatErrorResponse` e sua ligação com o Fastify). É uma
-  separação consciente: a classe de erro é conceito de domínio/aplicação, o handler que a traduz
-  em resposta HTTP é infraestrutura.
+- `infra/exception-handler.ts` é a camada que liga essas classes ao Fastify — o exception handler
+  global (a função `formatErrorResponse` e sua ligação com `app.setErrorHandler(...)`). As classes
+  de erro e o handler que as traduz em resposta HTTP moram lado a lado em `infra/` porque ambos são
+  peças técnicas de tratamento de erro — a separação que importa não é "onde o arquivo mora", e sim
+  o princípio acima: criação decentralizada (no módulo), tratamento centralizado (um handler só).
 - Erro de regra de negócio específica de um módulo (ex: "não pode resolver um anúncio já
   cancelado") vira uma subclasse nova em `modules/<módulo>/errors.ts`, estendendo `AppError` ou o
   genérico mais próximo (ex: `class ListingAlreadyResolvedError extends ConflictError`).
 
 **Alternativas consideradas:** centralizar todo erro (inclusive os específicos de módulo) em
-`shared/errors` — rejeitado, incharia um arquivo compartilhado com conceitos que só um módulo
+`infra/errors` — rejeitado, incharia um arquivo compartilhado com conceitos que só um módulo
 entende; um exception handler por módulo em vez de um só global — rejeitado, o handler atual já é
 genérico via `instanceof AppError`, múltiplos handlers não trariam benefício real.
 
@@ -51,10 +52,10 @@ genérico via `instanceof AppError`, múltiplos handlers não trariam benefício
 Ao precisar de um erro novo:
 1. É específico de uma regra de negócio de um módulo? `throw new` de uma subclasse em
    `modules/<módulo>/errors.ts`. É genuinamente reaproveitável em qualquer módulo? Adicione em
-   `shared/errors/app-error.ts`.
+   `infra/errors/app-error.ts`.
 2. Sempre `throw new XError(...)` no service ou usecase onde a regra é violada — nunca `throw`
    de string/objeto solto, nunca montar a resposta HTTP (`reply.status(...).send(...)`) na mão. O
-   exception handler global em `shared/infra/exception-handler.ts` cuida disso sozinho.
+   exception handler global em `infra/exception-handler.ts` cuida disso sozinho.
 
 ## Se algo não estiver coberto aqui
 
