@@ -7,7 +7,7 @@ Roteiro para retomar a implementação em uma sessão futura. Ver [ARCHITECTURE.
 - [x] Monorepo com npm workspaces (`apps/api`, `apps/web`)
 - [x] Fastify + Zod + Prisma configurados e validados (`/health` respondendo, migration `init` aplicada)
 - [x] Módulos `identity/pets/messaging/moderation` como pastas com fronteira definida
-- [x] `shared/config`, `shared/errors`, `shared/db`, `shared/storage` (local + S3) implementados
+- [x] `shared/config`, `shared/errors`, `shared/db` implementados; `gateways/storage.gateway.ts` (local + S3) implementado
 - [x] docker-compose (Postgres na porta host `5433` — 5432 pode estar ocupado por um Postgres nativo local)
 - [x] Vitest configurado, 1 teste passando (`test/health.test.ts`)
 - [x] ESLint + Prettier na raiz
@@ -27,7 +27,7 @@ Roteiro para retomar a implementação em uma sessão futura. Ver [ARCHITECTURE.
 ## Fase 2 — `pets` (+ storage)
 
 - [ ] Modelar no `schema.prisma`: `PetListing` (tipo `LOST | FOUND | DONATION`, título, descrição, espécie, lat/lng, cidade, `status` `ACTIVE | RESOLVED | CANCELLED`, `ownerId`, `deletedAt`), `PetPhoto` (chave de storage, url, ordem, `listingId`)
-- [ ] `POST /api/pets` — cria anúncio (autenticado), aceita upload via `@fastify/multipart`, valida tipo/tamanho, gera thumbnail com `sharp`, salva via `StorageProvider`
+- [ ] `POST /api/pets` — cria anúncio (autenticado), aceita upload via `@fastify/multipart`, valida tipo/tamanho, gera thumbnail com `sharp`, salva via `StorageGateway`
 - [ ] `GET /api/pets` — lista paginada (offset/limit), filtros por tipo, espécie, cidade, e busca por raio (lat/lng + fórmula de distância em SQL raw via Prisma `$queryRaw`)
 - [ ] `GET /api/pets/:id`, `PATCH /api/pets/:id` (só o dono), `DELETE /api/pets/:id` (soft delete, só o dono ou admin)
 - [ ] Ao soft-deletar, decidir e implementar o que acontece com as fotos no storage (manter ou remover — hoje em aberto)
@@ -46,7 +46,7 @@ Roteiro para retomar a implementação em uma sessão futura. Ver [ARCHITECTURE.
 - [ ] Modelar `Report` (`reporterId`, `listingId`, `reason`, `status` `PENDING | REVIEWED | DISMISSED`, `createdAt`)
 - [ ] `POST /api/moderation/reports` — usuário autenticado denuncia um anúncio
 - [ ] `GET /api/moderation/reports` — fila de revisão, só admin (`requireRole('ADMIN')`)
-- [ ] `POST /api/moderation/reports/:id/resolve` — admin marca como revisado e opcionalmente remove o anúncio (chama o serviço público de `pets`, nunca a tabela direto)
+- [ ] `POST /api/moderation/reports/:id/resolve` — admin marca como revisado e opcionalmente remove o anúncio (chama o usecase que orquestra `moderation` e `pets`, nunca o service ou a tabela de outro módulo direto)
 - [ ] Testes: acesso negado para não-admin, fluxo completo de denúncia → revisão → remoção
 
 ## Backlog (fora de ordem, quando fizer sentido)

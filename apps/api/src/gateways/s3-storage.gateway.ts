@@ -1,8 +1,7 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import type { StorageProvider } from './storage-provider.js';
 
-export class S3StorageProvider implements StorageProvider {
+export class S3StorageGateway {
   private readonly client: S3Client;
 
   constructor(

@@ -1,11 +1,18 @@
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
 import Fastify from 'fastify';
-import { serializerCompiler, validatorCompiler, type ZodTypeProvider } from 'fastify-type-provider-zod';
+import {
+  jsonSchemaTransform,
+  serializerCompiler,
+  validatorCompiler,
+  type ZodTypeProvider,
+} from 'fastify-type-provider-zod';
 import { randomUUID } from 'node:crypto';
 import type { Env } from './shared/config/env.js';
-import { formatErrorResponse } from './shared/errors/error-handler.js';
+import { formatErrorResponse } from './shared/infra/exception-handler.js';
 import { identityModule } from './modules/identity/index.js';
 
 export function buildApp(env: Env) {
@@ -30,6 +37,18 @@ export function buildApp(env: Env) {
   app.register(cors, { origin: env.CORS_ORIGIN, credentials: true });
   app.register(cookie, { secret: env.SESSION_COOKIE_SECRET });
   app.register(rateLimit, { global: false });
+
+  // Swagger UI exposes the full API shape (routes, schemas) and is only useful
+  // for exercising endpoints during development, so it's kept out of production.
+  if (env.NODE_ENV !== 'production') {
+    app.register(swagger, {
+      openapi: {
+        info: { title: 'Lost Pets API', version: '1.0.0' },
+      },
+      transform: jsonSchemaTransform,
+    });
+    app.register(swaggerUi, { routePrefix: '/docs' });
+  }
 
   app.get('/health', async () => ({ status: 'ok' }));
 
