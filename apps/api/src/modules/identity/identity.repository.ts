@@ -1,7 +1,14 @@
 import { prisma } from '../../infra/db/prisma.js';
-import type { SessionWithUserDto } from './identity.dto.js';
+import type { SessionWithUserDto, UserDto } from './identity.dto.js';
 
 export class IdentityRepository {
+  // A login attempt against a nonexistent email is a valid outcome, not an
+  // error — findX (null), not getX (NotFoundError). Includes `passwordHash`
+  // since the service needs it to verify the login attempt.
+  async findByEmail(email: string): Promise<UserDto | null> {
+    return prisma.user.findUnique({ where: { email } });
+  }
+
   async create(userId: string, expiresAt: Date): Promise<SessionWithUserDto> {
     return prisma.session.create({
       data: { userId, expiresAt },
