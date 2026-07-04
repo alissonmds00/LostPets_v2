@@ -45,4 +45,13 @@ export class IdentityService {
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
     };
   }
+
+  // Idempotent by design: deleteById is a no-op (not an error) when the
+  // session is already gone, same as the repository's own deleteMany-based
+  // behavior (see IdentityRepository.deleteById) — logging out twice, or
+  // logging out with a session that already expired/was removed, should
+  // still succeed instead of surfacing a spurious error to the client.
+  async logout(sessionId: string): Promise<void> {
+    await this.repository.deleteById(sessionId);
+  }
 }

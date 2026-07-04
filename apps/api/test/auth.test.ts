@@ -29,9 +29,11 @@ const testEnv: Env = {
 // throws "not a function".
 async function buildTestApp() {
   const app = buildApp(testEnv);
-  app.get('/__test/protected', { preHandler: (req, reply) => app.requireAuth(req, reply) }, () => ({
-    ok: true,
-  }));
+  app.get(
+    '/__test/protected',
+    { preHandler: (req, reply) => app.requireAuth(req, reply) },
+    (req) => ({ ok: true, sessionId: req.sessionId }),
+  );
   app.get(
     '/__test/admin-only',
     { preHandler: (req, reply) => app.requireRole('ADMIN')(req, reply) },
@@ -98,6 +100,24 @@ describe('requireAuth / requireRole', () => {
     });
 
     expect(response.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('attaches request.sessionId with the id of the validated session', async () => {
+    const app = await buildTestApp();
+    const session = await prisma.session.create({
+      data: { userId, expiresAt: new Date(Date.now() + 60_000) },
+    });
+    const signed = app.signCookie(session.id);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/__test/protected',
+      cookies: { [testEnv.SESSION_COOKIE_NAME]: signed },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().sessionId).toBe(session.id);
     await app.close();
   });
 
