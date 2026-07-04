@@ -54,6 +54,9 @@ Ao criar ou alterar acesso a dado de um módulo:
 3. Envolva a chamada ao Prisma em `try/catch` quando o método puder falhar por uma constraint do
    banco (unique, foreign key), e traduza pro `AppError` correspondente antes de propagar.
 4. O service chama o repository — a rota, o usecase e o gateway nunca o importam diretamente.
+5. O repository não instancia a si mesmo em quem o usa — a única instância é criada e decorada na
+   instância raiz do Fastify em `apps/api/src/app.ts` (ver skill `dependency-injection`), e o
+   service recebe essa instância injetada no próprio construtor.
 
 ## Se algo não estiver coberto aqui
 

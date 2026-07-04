@@ -43,6 +43,10 @@ Ao implementar ou alterar a lógica de negócio de um módulo:
    não importa nada de outro módulo (nem repository nem service).
 3. Se a operação precisar de dado ou comportamento de outro módulo, isso não é chamada de service
    pra service — é o usecase orquestrando os dois services.
+4. O service recebe o repository do próprio módulo **injetado no construtor** (ex:
+   `constructor(private repository: IdentityRepository) {}`) — ele nunca faz `new
+   XRepository()` dentro de si mesmo. A instância única do service (e do repository) é montada em
+   `apps/api/src/app.ts` e decorada na instância raiz do Fastify — ver skill `dependency-injection`.
 
 ## Se algo não estiver coberto aqui
 

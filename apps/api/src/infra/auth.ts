@@ -2,7 +2,6 @@ import fp from 'fastify-plugin';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Env } from './config/env.js';
 import { ForbiddenError, UnauthorizedError } from './errors/app-error.js';
-import { IdentityRepository } from '../modules/identity/identity.repository.js';
 import type { AuthenticatedUserDto } from '../modules/identity/identity.dto.js';
 
 declare module 'fastify' {
@@ -39,7 +38,11 @@ declare module 'fastify' {
 // tasks) can use them.
 export const authPlugin = fp(
   async (app, opts: { env: Env }) => {
-    const repository = new IdentityRepository();
+    // Uses the single IdentityRepository instance decorated onto the root
+    // instance in app.ts (dependency injection via Fastify's native decorate
+    // mechanism) instead of instantiating its own — see the
+    // dependency-injection skill.
+    const repository = app.identityRepository;
     const cookieName = opts.env.SESSION_COOKIE_NAME;
 
     app.decorate('requireAuth', async (request: FastifyRequest, _reply: FastifyReply) => {

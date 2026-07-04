@@ -15,6 +15,18 @@ import type { Env } from './infra/config/env.js';
 import { formatErrorResponse } from './infra/exception-handler.js';
 import { authPlugin } from './infra/auth.js';
 import { identityModule } from './modules/identity/identity.routes.js';
+import { IdentityRepository } from './modules/identity/identity.repository.js';
+
+// Module augmentation for the decorators added below — same technique used
+// in infra/auth.ts for requireAuth/requireRole.
+declare module 'fastify' {
+  interface FastifyInstance {
+    identityRepository: IdentityRepository;
+    // identityService will be decorated here the same way once
+    // identity.service.ts exists (register/login are still separate, open
+    // PRs at the time this was written).
+  }
+}
 
 // Access log for every request (method/url/status/duration/request-id), on top
 // of Fastify's built-in "incoming request"/"request completed" hooks. Explicit
@@ -66,6 +78,22 @@ export function buildApp(env: Env) {
   }
 
   app.get('/health', async () => ({ status: 'ok' }));
+
+  // Dependency injection via Fastify's native decorate mechanism (chosen over
+  // @fastify/awilix to avoid introducing a new container/cradle concept when
+  // decorate already solves the coupling problem — see the
+  // dependency-injection skill). Instantiated exactly once here and decorated
+  // onto the root instance, *before* registering any plugin/module that needs
+  // them: decorators added directly on the root instance (not inside a nested
+  // .register() call) are automatically inherited by every child context
+  // registered afterward, no fastify-plugin wrapping needed for this
+  // direction (unlike authPlugin below, whose decorators need to bubble *up*
+  // to the parent instead of down to children).
+  const identityRepository = new IdentityRepository();
+  app.decorate('identityRepository', identityRepository);
+  // identityService will be instantiated (with identityRepository injected
+  // into its constructor) and decorated here the same way once
+  // identity.service.ts exists.
 
   // Registered at root (not nested inside identityModule's own
   // app.register(...) below) so requireAuth/requireRole are visible to every

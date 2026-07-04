@@ -26,13 +26,13 @@ export function formatErrorResponse(error: unknown): ErrorResponse {
     return {
       statusCode: 400,
       body: {
-        error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.flatten() },
+        error: { code: 'VALIDATION_ERROR', message: 'Dados inválidos', details: error.flatten() },
       },
     };
   }
 
   return {
     statusCode: 500,
-    body: { error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
+    body: { error: { code: 'INTERNAL_ERROR', message: 'Algo deu errado' } },
   };
 }
