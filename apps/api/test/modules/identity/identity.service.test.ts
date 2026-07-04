@@ -2,11 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../../src/infra/db/prisma.js';
 import { hashPassword } from '../../../src/infra/password.js';
+import { IdentityRepository } from '../../../src/modules/identity/identity.repository.js';
 import { IdentityService } from '../../../src/modules/identity/identity.service.js';
 import { UnauthorizedError } from '../../../src/infra/errors/app-error.js';
 
 describe('IdentityService', () => {
-  const service = new IdentityService();
+  // Repository injected via constructor (see the dependency-injection
+  // skill) — still the real repository/Postgres, per the testing skill's
+  // "no mocking a collaborator" rule for service tests.
+  const repository = new IdentityRepository();
+  const service = new IdentityService(repository, 7);
   let userId: string;
   let userEmail: string;
   const plainPassword = 'correct-horse-battery-staple';

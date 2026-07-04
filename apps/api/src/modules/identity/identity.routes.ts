@@ -35,7 +35,7 @@ export async function identityModule(
       },
     },
     async (request, reply) => {
-      const result = await loginUsecase(request.body);
+      const result = await loginUsecase(app.identityService, request.body);
 
       // Matches how requireAuth unsigns this same cookie in infra/auth.ts:
       // signed, httpOnly, and scoped to the whole app so every module's

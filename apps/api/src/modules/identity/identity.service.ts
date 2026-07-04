@@ -1,26 +1,27 @@
 import { UnauthorizedError } from '../../infra/errors/app-error.js';
 import { verifyPassword } from '../../infra/password.js';
-import { IdentityRepository } from './identity.repository.js';
+import type { IdentityRepository } from './identity.repository.js';
 import type { LoginBodyDto, LoginResultDto } from './identity.dto.js';
 
-// Session TTL: 7 days. No prior decision existed for this — a reasonable
-// default for a session cookie, not an architecturally significant choice;
-// noted for reconsideration later if needed.
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
 export class IdentityService {
-  private readonly repository = new IdentityRepository();
+  // Repository injected via constructor — the single instance is built once
+  // in app.ts and decorated onto the root Fastify instance (see the
+  // dependency-injection skill); the service never instantiates its own.
+  constructor(
+    private readonly repository: IdentityRepository,
+    private readonly sessionTtlDays: number,
+  ) {}
 
   // One service per module (see the `service` skill) — register's logic
   // will land here too, as another method on this same class.
   async login(credentials: LoginBodyDto): Promise<LoginResultDto> {
     const user = await this.repository.findByEmail(credentials.email);
-    if (!user) throw new UnauthorizedError('Invalid credentials');
+    if (!user) throw new UnauthorizedError('Credenciais inválidas');
 
     const passwordMatches = await verifyPassword(user.passwordHash, credentials.password);
-    if (!passwordMatches) throw new UnauthorizedError('Invalid credentials');
+    if (!passwordMatches) throw new UnauthorizedError('Credenciais inválidas');
 
-    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+    const expiresAt = new Date(Date.now() + this.sessionTtlDays * 24 * 60 * 60 * 1000);
     const session = await this.repository.create(user.id, expiresAt);
 
     // Built from the already-looked-up `user` (UserDto, from findByEmail)
