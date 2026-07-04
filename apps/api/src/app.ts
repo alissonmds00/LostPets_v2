@@ -16,15 +16,14 @@ import { formatErrorResponse } from './infra/exception-handler.js';
 import { authPlugin } from './infra/auth.js';
 import { identityModule } from './modules/identity/identity.routes.js';
 import { IdentityRepository } from './modules/identity/identity.repository.js';
+import { IdentityService } from './modules/identity/identity.service.js';
 
 // Module augmentation for the decorators added below — same technique used
 // in infra/auth.ts for requireAuth/requireRole.
 declare module 'fastify' {
   interface FastifyInstance {
     identityRepository: IdentityRepository;
-    // identityService will be decorated here the same way once
-    // identity.service.ts exists (register/login are still separate, open
-    // PRs at the time this was written).
+    identityService: IdentityService;
   }
 }
 
@@ -91,9 +90,7 @@ export function buildApp(env: Env) {
   // to the parent instead of down to children).
   const identityRepository = new IdentityRepository();
   app.decorate('identityRepository', identityRepository);
-  // identityService will be instantiated (with identityRepository injected
-  // into its constructor) and decorated here the same way once
-  // identity.service.ts exists.
+  app.decorate('identityService', new IdentityService(identityRepository, env.SESSION_TTL_DAYS));
 
   // Registered at root (not nested inside identityModule's own
   // app.register(...) below) so requireAuth/requireRole are visible to every
@@ -106,7 +103,7 @@ export function buildApp(env: Env) {
   // Each module owns its own routes/service/repository and only reaches into
   // its own Prisma models. Cross-module calls go through another module's
   // exported service, never straight into its tables.
-  app.register(identityModule, { prefix: '/api/identity' });
+  app.register(identityModule, { prefix: '/api/identity', env });
   // pets, messaging and moderation modules are registered here as they're
   // built — see PLAN.md for build order and scope.
 
