@@ -15,14 +15,28 @@ import type { Env } from './shared/config/env.js';
 import { formatErrorResponse } from './shared/infra/exception-handler.js';
 import { identityModule } from './modules/identity/index.js';
 
+// Access log for every request (method/url/status/duration/request-id), on top
+// of Fastify's built-in "incoming request"/"request completed" hooks. Explicit
+// serializers pin this down to just those fields — Fastify's default req
+// serializer already excludes headers, but this makes it explicit so no one
+// later adds `headers` back and leaks the session cookie into the logs.
+const requestLogSerializers = {
+  req: (req: { method: string; url: string }) => ({ method: req.method, url: req.url }),
+  res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
+};
+
 export function buildApp(env: Env) {
   const app = Fastify({
     logger:
       env.NODE_ENV === 'test'
         ? { level: 'silent' as const }
         : env.NODE_ENV === 'development'
-          ? { level: 'info' as const, transport: { target: 'pino-pretty' } }
-          : { level: 'info' as const },
+          ? {
+              level: 'info' as const,
+              transport: { target: 'pino-pretty' },
+              serializers: requestLogSerializers,
+            }
+          : { level: 'info' as const, serializers: requestLogSerializers },
     genReqId: (req) => (req.headers['x-request-id'] as string) ?? randomUUID(),
   }).withTypeProvider<ZodTypeProvider>();
 

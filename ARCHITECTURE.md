@@ -54,7 +54,9 @@ orquestra os services dos módulos envolvidos. Isso é o que torna isso um monol
 - CORS com `credentials: true` e origem explícita (não `*`), obrigatório por causa da autenticação via cookie.
 - Env vars validadas com Zod na subida da app (`shared/config/env.ts`) — falha rápido e claro em vez de erro tardio em runtime.
 - `/health` sem tocar no banco, para health check de orquestração (Docker/ECS).
-- Logging estruturado via pino (já embutido no Fastify), com correlação por `x-request-id`.
+- Logging estruturado via pino (já embutido no Fastify), com correlação por `x-request-id`; access
+  log (método/rota/status/duração) com serializers explícitos pra nunca logar headers/cookie de
+  sessão — ver skill `logging`.
 - ESLint (flat config) + Prettier na raiz do monorepo.
 - Convenção de migration do Prisma: `prisma migrate dev` local, `prisma migrate deploy` em CI/prod.
 
