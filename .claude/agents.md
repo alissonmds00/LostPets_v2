@@ -29,8 +29,8 @@ criar camada demais "por garantia" quanto pular uma camada que a arquitetura já
 ## Antes de criar um padrão de código
 
 Antes de criar ou estruturar qualquer controller/route handler, repository, service, middleware,
-DTO, validator, error handler, gateway, enum, documentação de API (Swagger/OpenAPI) ou plugin de
-módulo — use a skill `pattern-advisor`
+DTO, validator, error handler, gateway, enum, logging/auditoria, documentação de API
+(Swagger/OpenAPI) ou plugin de módulo — use a skill `pattern-advisor`
 (`.claude/skills/pattern-advisor/`). Ela pesquisa a prática de mercado para essa stack, cruza com
 as convenções já fixadas no projeto, e sempre pergunta ao usuário antes de implementar — nunca
 decide sozinha.

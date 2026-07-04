@@ -44,7 +44,7 @@ Tests are Vitest; integration tests are meant to run against a real Postgres (vi
 ## Architecture
 
 Every code-shaped pattern below (controller, dto, usecase, service, gateway, repository, enum,
-exception-handler, swagger, testing) is documented in detail as its own skill in
+exception-handler, logging, swagger, testing) is documented in detail as its own skill in
 `.claude/skills/<pattern>/` — those are the source of truth for how to implement each layer; this
 section is only the map.
 
@@ -67,6 +67,10 @@ Each module is internally layered `route → usecase → service → repository`
 Centralize the handling, decentralize the creation: errors are thrown where the business rule lives (in a module), but all of them are caught in one place — the global exception handler (`formatErrorResponse` in `shared/infra/exception-handler.ts`, registered via `app.setErrorHandler(...)`). It works generically off `instanceof AppError` (4xx, business error, carries its own `statusCode`/`code`/`message`/`details`) vs. anything else (500, treated as a bug, no detail leaked) — adding a new error class never requires touching this handler. Always `throw new SomeSpecificError(...)`, never a raw string/object.
 
 Generic, reusable-anywhere errors (`NotFoundError`, `UnauthorizedError`, `ForbiddenError`, `ConflictError`) live in `shared/errors/app-error.ts`. An error tied to one module's business rule gets its own subclass in `modules/<module>/errors.ts` instead of being forced into a generic one.
+
+### Logging
+
+Access log only (method/url/status/duration/request-id), not a business-action audit trail — cross-cutting, lives in `app.ts` via Fastify's built-in pino logger, not per-route/service. Explicit `requestLogSerializers` in `app.ts` pin the `req`/`res` serializers to just those fields so headers (and the session cookie in them) never leak into logs. Correlation is via `genReqId` (reads `x-request-id`, falls back to `randomUUID()`). No request/response body logging yet — would need a redaction allowlist first. See the `logging` skill for the full decision and what's deliberately deferred (body logging, a persisted `AuditLog` table).
 
 ### Gateways (external service integration)
 
