@@ -16,7 +16,7 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
 | Autenticação | Cookie de sessão httpOnly (`@fastify/cookie`), tabela `sessions` no Postgres, hash de senha com `argon2` | mais seguro contra XSS que JWT em localStorage; sem lógica de refresh token no frontend |
 | Autorização | Campo `role` no usuário (`USER` / `ADMIN`) | suficiente para moderação, sem RBAC complexo |
 | Mensagens diretas | WebSocket via `@fastify/websocket`, atrelada a um anúncio | usuário optou por tempo real; sem etapa de aprovação prévia (avaliado e recusado conscientemente) |
-| Fotos | Interface `StorageProvider` (`shared/storage`) com driver local (dev) e driver S3 (prod via `@aws-sdk/client-s3`), selecionado por `STORAGE_DRIVER` | mantém a app "pronta para AWS" sem acoplar no S3 agora |
+| Fotos | Gateway `StorageGateway` (`gateways/storage.gateway.ts`), decide local (dev) vs S3 (prod via `@aws-sdk/client-s3`) internamente por `STORAGE_DRIVER` | mantém a app "pronta para AWS" sem acoplar no S3 agora |
 | Upload de foto | Validação de tipo/tamanho + geração de thumbnail (`sharp`) | decisão consciente de aceitar a complexidade extra |
 | Geolocalização | lat/lng + fórmula de distância direto na query SQL, sem PostGIS | mantido simples deliberadamente |
 | Exclusão | Soft delete (`deletedAt`) em usuários e anúncios | denúncias/moderação precisam referenciar anúncios mesmo depois de removidos |
@@ -31,16 +31,25 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
 - **`pets`** — CRUD de anúncios (perdido/achado/doação), fotos, busca por localização.
 - **`messaging`** — mensagens diretas via WebSocket, atreladas a um anúncio.
 - **`moderation`** — denúncias contra anúncios, fila de revisão para admin.
-- **`shared`** — infraestrutura transversal (storage, cliente Prisma, config, erros); não é módulo de domínio.
+- **`shared`** — infraestrutura transversal (cliente Prisma, config, erros); não é módulo de domínio.
+- **`gateways`** — integração com sistemas externos (hoje: storage); não é módulo de domínio, ver skill `gateway`.
 
-**Regra dura:** cada módulo só acessa suas próprias tabelas via seu próprio repositório. Comunicação entre módulos é sempre via chamada ao serviço público exportado do outro módulo — nunca uma query direta cross-module. Isso é o que torna isso um monolito de fato *modular*, não apenas pastas por feature.
+**Regra dura:** cada módulo só acessa suas próprias tabelas via seu próprio repositório. Um
+service **nunca** chama o service de outro módulo — comunicação entre módulos acontece
+exclusivamente na camada de usecase (`apps/api/src/usecases/`, ver "Convenções" abaixo), que
+orquestra os services dos módulos envolvidos. Isso é o que torna isso um monolito de fato
+*modular*, não apenas pastas por feature.
 
 **Ordem de implementação** (pela cadeia real de dependência, não uma fase arbitrária): `identity` → `pets` (+ storage) → `messaging` → `moderation`. Ver [PLAN.md](PLAN.md) para o detalhamento executável dessa ordem.
 
 ## Convenções já aplicadas no esqueleto
 
 - Erro de API padronizado: `{ error: { code, message, details? } }` ([shared/errors](apps/api/src/shared/errors)).
-- Camadas por módulo: `route → service → repository`, repositório é o único ponto que fala com o Prisma.
+- Camadas: `route → usecase → service → repository`. Toda rota chama um usecase, nunca o service
+  diretamente; usecases moram em `apps/api/src/usecases/` (fora de `modules/`, pois orquestram
+  services de módulos diferentes); cada service só chama o repository do próprio módulo;
+  repositório é o único ponto que fala com o Prisma. Ver skills `controller` e `usecase` em
+  `.claude/skills/` para o detalhe de cada camada.
 - CORS com `credentials: true` e origem explícita (não `*`), obrigatório por causa da autenticação via cookie.
 - Env vars validadas com Zod na subida da app (`shared/config/env.ts`) — falha rápido e claro em vez de erro tardio em runtime.
 - `/health` sem tocar no banco, para health check de orquestração (Docker/ECS).

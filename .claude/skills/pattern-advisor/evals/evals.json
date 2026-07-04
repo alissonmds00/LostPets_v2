@@ -1,0 +1,41 @@
+{
+  "skill_name": "pattern-advisor",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "cria uma controller pra listar os pets, com paginação",
+      "expected_output": "Reconhece que o projeto não tem camada de controller separada (route→service→repository), pesquisa práticas Fastify+TS reais, e faz UMA pergunta sobre a decisão genuinamente em aberto (onde resolver paginação/filtro) antes de implementar qualquer coisa.",
+      "expectations": [
+        "Antes de implementar qualquer código, apresenta ao usuário pelo menos uma pergunta real sobre uma decisão em aberto, em vez de implementar direto",
+        "Identifica que o projeto não tem uma camada de controller separada (rota Fastify chama o service direto, route→service→repository) e comunica isso como fato já decidido, não como pergunta",
+        "Faz pesquisa real na web sobre como projetos Fastify+TypeScript estruturam a camada de entrada HTTP, antes de apresentar opções",
+        "A pergunta feita ao usuário foca em uma única decisão em aberto por vez, sem empacotar múltiplas decisões numa pergunta só",
+        "Não implementa nenhum arquivo de código de fato antes de reportar a pergunta ao usuário"
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "preciso de um repository pra buscar usuário por email no módulo identity, ainda não implementei nada disso",
+      "expected_output": "Lê o schema.prisma e código existente, pesquisa repository pattern com Prisma+TS especificamente, cita a regra de que o repository é o único ponto que fala com o Prisma, e pergunta sobre a decisão em aberto (ex: null vs NotFoundError) antes de implementar.",
+      "expectations": [
+        "Lê o schema.prisma existente (model User) e o código já existente do módulo identity antes de propor qualquer abordagem",
+        "Pesquisa práticas de mercado específicas de repository pattern com Prisma + TypeScript",
+        "Identifica e comunica como fato já decidido a regra do projeto de que o repository é o único ponto que fala com o Prisma dentro de um módulo",
+        "Apresenta uma pergunta real e específica sobre uma decisão genuinamente em aberto do repository (ex: retornar null vs lançar NotFoundError)",
+        "Não implementa o repository antes de obter uma resposta do usuário sobre a decisão em aberto identificada"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "monta um middleware de autenticação que lê o cookie de sessão pra proteger as rotas que precisam de usuário logado",
+      "expected_output": "Reconhece que auth via cookie httpOnly + sessions + argon2 já está decidido em ARCHITECTURE.md (não reabre essa discussão), pesquisa práticas Fastify (decorator vs hook), e pergunta sobre o que está genuinamente em aberto antes de implementar.",
+      "expectations": [
+        "Reconhece que a decisão de autenticação via cookie httpOnly + tabela sessions + argon2 já está fixada em ARCHITECTURE.md e a trata como fato, sem reabrir a discussão sobre trocar de mecanismo",
+        "Pesquisa prática de mercado específica para Fastify (hooks/decorators de autenticação) via WebSearch",
+        "Identifica a decisão genuinamente em aberto (ex: onde/como expor requireAuth e requireRole, decorator vs hook) e pergunta sobre isso",
+        "Não implementa o middleware antes de obter resposta do usuário sobre a decisão em aberto identificada",
+        "Considera/reutiliza a classe UnauthorizedError já existente em shared/errors em vez de inventar um novo formato de erro"
+      ]
+    }
+  ]
+}
