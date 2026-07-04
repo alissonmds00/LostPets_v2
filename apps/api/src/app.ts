@@ -90,8 +90,7 @@ export function buildApp(env: Env) {
   // to the parent instead of down to children).
   const identityRepository = new IdentityRepository();
   app.decorate('identityRepository', identityRepository);
-  const identityService = new IdentityService(identityRepository);
-  app.decorate('identityService', identityService);
+  app.decorate('identityService', new IdentityService(identityRepository, env.SESSION_TTL_DAYS));
 
   // Registered at root (not nested inside identityModule's own
   // app.register(...) below) so requireAuth/requireRole are visible to every
@@ -104,7 +103,7 @@ export function buildApp(env: Env) {
   // Each module owns its own routes/service/repository and only reaches into
   // its own Prisma models. Cross-module calls go through another module's
   // exported service, never straight into its tables.
-  app.register(identityModule, { prefix: '/api/identity' });
+  app.register(identityModule, { prefix: '/api/identity', env });
   // pets, messaging and moderation modules are registered here as they're
   // built — see PLAN.md for build order and scope.
 

@@ -7,11 +7,13 @@ import { ConflictError } from '../../../src/infra/errors/app-error.js';
 describe('IdentityRepository', () => {
   const repository = new IdentityRepository();
   let userId: string;
+  let userEmail: string;
 
   beforeEach(async () => {
+    userEmail = `${randomUUID()}@example.com`;
     const user = await prisma.user.create({
       data: {
-        email: `${randomUUID()}@example.com`,
+        email: userEmail,
         passwordHash: 'irrelevant-for-this-test',
         name: 'Test User',
       },
@@ -51,6 +53,22 @@ describe('IdentityRepository', () => {
       ).rejects.toThrow(ConflictError);
 
       await prisma.user.deleteMany({ where: { email } });
+    });
+  });
+
+  describe('findByEmail', () => {
+    it('returns the user when a user with that email exists', async () => {
+      const found = await repository.findByEmail(userEmail);
+
+      expect(found).not.toBeNull();
+      expect(found?.id).toBe(userId);
+      expect(found?.email).toBe(userEmail);
+    });
+
+    it('returns null when no user with that email exists', async () => {
+      const found = await repository.findByEmail(`${randomUUID()}@example.com`);
+
+      expect(found).toBeNull();
     });
   });
 

@@ -1,7 +1,12 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../infra/db/prisma.js';
 import { ConflictError } from '../../infra/errors/app-error.js';
-import type { CreateUserDto, SessionWithUserDto, UserDto } from './identity.dto.js';
+import type {
+  CreateUserDto,
+  SessionWithUserDto,
+  UserDto,
+  UserWithPasswordDto,
+} from './identity.dto.js';
 
 export class IdentityRepository {
   // Doesn't pre-check email uniqueness with a separate lookup (findByEmail then
@@ -21,6 +26,13 @@ export class IdentityRepository {
       }
       throw error;
     }
+  }
+
+  // A login attempt against a nonexistent email is a valid outcome, not an
+  // error — findX (null), not getX (NotFoundError). Includes `passwordHash`
+  // since the service needs it to verify the login attempt.
+  async findByEmail(email: string): Promise<UserWithPasswordDto | null> {
+    return prisma.user.findUnique({ where: { email } });
   }
 
   async create(userId: string, expiresAt: Date): Promise<SessionWithUserDto> {
