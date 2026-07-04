@@ -1,8 +1,8 @@
 import type { Env } from '../shared/config/env.js';
-import { LocalStorageGateway } from './local-storage.gateway.service.js';
-import { S3StorageGateway } from './s3-storage.gateway.service.js';
+import { LocalStorageGatewayService } from './local-storage.gateway.service.js';
+import { S3StorageGatewayService } from './s3-storage.gateway.service.js';
 
-export type StorageGateway = LocalStorageGateway | S3StorageGateway;
+export type StorageGateway = LocalStorageGatewayService | S3StorageGatewayService;
 
 // Escolhe o gateway concreto por STORAGE_DRIVER — dev usa disco local, prod usa S3.
 // Sem interface declarada: as duas classes só precisam bater a forma usada aqui
@@ -12,7 +12,7 @@ export function createStorageGateway(env: Env): StorageGateway {
     if (!env.S3_BUCKET || !env.S3_REGION) {
       throw new Error('S3_BUCKET and S3_REGION are required when STORAGE_DRIVER=s3');
     }
-    return new S3StorageGateway(env.S3_BUCKET, env.S3_REGION);
+    return new S3StorageGatewayService(env.S3_BUCKET, env.S3_REGION);
   }
-  return new LocalStorageGateway(env);
+  return new LocalStorageGatewayService(env);
 }

@@ -2,7 +2,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Env } from '../shared/config/env.js';
 
-export class LocalStorageGateway {
+export class LocalStorageGatewayService {
   constructor(private readonly env: Env) {}
 
   async save(key: string, data: Buffer, _contentType: string): Promise<string> {

@@ -1,7 +1,7 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-export class S3StorageGateway {
+export class S3StorageGatewayService {
   private readonly client: S3Client;
 
   constructor(
