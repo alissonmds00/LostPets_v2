@@ -30,6 +30,12 @@ description: >
 - Um usecase por operação/fluxo de negócio (ex: `create-pet.usecase.ts`, `report-listing.usecase.ts`),
   seguindo a mesma granularidade de responsabilidade única do conceito de Use Case em Clean
   Architecture.
+- **Usecase (e rota) nunca faz `new XService()`/`new XRepository()`.** Services e repositories são
+  instanciados uma única vez em `apps/api/src/app.ts` e decorados na instância raiz do Fastify
+  (`app.identityService`, `app.identityRepository`, etc. — dependency injection via mecanismo nativo
+  do Fastify, ver skill `dependency-injection`). O usecase recebe a instância do(s) service(s) como
+  parâmetro, sourced de `app.<nomeDecorado>` por quem chama — a rota sempre tem `app` no escopo e é
+  quem repassa a instância pro usecase.
 
 **Alternativas consideradas:** usecase como camada adicional *depois* do service (`route → service
 → usecase → repository`) — rejeitado por criar duas camadas fazendo orquestração parecida, o que
@@ -50,10 +56,11 @@ de domínio.
 
 Ao implementar uma rota nova:
 1. Crie (ou reutilize) o usecase da operação em `apps/api/src/usecases/<nome-da-operação>.usecase.ts`.
-2. O usecase recebe o DTO de entrada (ver skill `dto`), chama o(s) service(s) necessário(s) — do
-   próprio módulo "dono" da operação e de quaisquer outros módulos envolvidos — e devolve o
-   resultado tipado como DTO.
-3. A rota (skill `controller`) chama esse usecase, nunca um service diretamente.
+2. O usecase recebe o DTO de entrada (ver skill `dto`) e o(s) service(s) necessário(s) como
+   parâmetro — nunca instanciando `new XService()` ele mesmo (ver skill `dependency-injection`) —,
+   chama o(s) service(s) e devolve o resultado tipado como DTO.
+3. A rota (skill `controller`) chama esse usecase, nunca um service diretamente, e é quem repassa
+   pro usecase a instância do service lida de `app.<nomeDecorado>`.
 4. O service continua só falando com o repository do seu próprio módulo — se durante a
    implementação um service parecer precisar chamar outro módulo, isso é sinal de que essa lógica
    pertence ao usecase, não ao service.
