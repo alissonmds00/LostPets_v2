@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '../../../src/infra/db/prisma.js';
+import * as passwordModule from '../../../src/infra/password.js';
 import { hashPassword, verifyPassword } from '../../../src/infra/password.js';
 import { IdentityRepository } from '../../../src/modules/identity/identity.repository.js';
 import { IdentityService } from '../../../src/modules/identity/identity.service.js';
@@ -111,6 +112,25 @@ describe('IdentityService', () => {
 
       const after = await prisma.session.count({ where: { userId } });
       expect(after).toBe(before);
+    });
+
+    // Timing-attack mitigation (see SECURITY-AUDIT.md, section 4, item 1):
+    // verifyPassword (argon2, CPU-expensive) must run on both the
+    // "email doesn't exist" path and the "wrong password" path, so the two
+    // failure paths cost the same CPU time and don't leak whether an email
+    // is registered via response latency. We spy on verifyPassword (infra,
+    // not a domain collaborator) purely to observe that it's invoked on
+    // both paths — a real Date.now()-based timing test would be flaky.
+    it('calls verifyPassword even when the email does not exist, to equalize timing with the wrong-password path', async () => {
+      const verifySpy = vi.spyOn(passwordModule, 'verifyPassword');
+
+      await expect(
+        service.login({ email: `${randomUUID()}@example.com`, password: plainPassword }),
+      ).rejects.toThrow(UnauthorizedError);
+
+      expect(verifySpy).toHaveBeenCalled();
+
+      verifySpy.mockRestore();
     });
   });
 
