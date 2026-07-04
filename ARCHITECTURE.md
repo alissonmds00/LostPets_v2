@@ -32,7 +32,10 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
 - **`pets`** — CRUD de anúncios (perdido/achado/doação), fotos, busca por localização.
 - **`messaging`** — mensagens diretas via WebSocket, atreladas a um anúncio.
 - **`moderation`** — denúncias contra anúncios, fila de revisão para admin.
-- **`shared`** — infraestrutura transversal (cliente Prisma, config, erros); não é módulo de domínio.
+- **`infra`** — camada técnica/de infraestrutura (cliente Prisma, config de env, classes de erro, exception
+  handler global); não é módulo de domínio, não tem lógica de negócio.
+- **`shared`** — conceitos de domínio genuinamente compartilhados entre módulos (ex: enum `Role`); não é
+  módulo de domínio.
 - **`gateways`** — integração com sistemas externos (hoje: storage); não é módulo de domínio, ver skill `gateway`.
 
 **Regra dura:** cada módulo só acessa suas próprias tabelas via seu próprio repositório. Um
@@ -45,14 +48,14 @@ orquestra os services dos módulos envolvidos. Isso é o que torna isso um monol
 
 ## Convenções já aplicadas no esqueleto
 
-- Erro de API padronizado: `{ error: { code, message, details? } }` ([shared/errors](apps/api/src/shared/errors)).
+- Erro de API padronizado: `{ error: { code, message, details? } }` ([infra/errors](apps/api/src/infra/errors)).
 - Camadas: `route → usecase → service → repository`. Toda rota chama um usecase, nunca o service
   diretamente; usecases moram em `apps/api/src/usecases/` (fora de `modules/`, pois orquestram
   services de módulos diferentes); cada service só chama o repository do próprio módulo;
   repositório é o único ponto que fala com o Prisma. Ver skills `controller` e `usecase` em
   `.claude/skills/` para o detalhe de cada camada.
 - CORS com `credentials: true` e origem explícita (não `*`), obrigatório por causa da autenticação via cookie.
-- Env vars validadas com Zod na subida da app (`shared/config/env.ts`) — falha rápido e claro em vez de erro tardio em runtime.
+- Env vars validadas com Zod na subida da app (`infra/config/env.ts`) — falha rápido e claro em vez de erro tardio em runtime.
 - `/health` sem tocar no banco, para health check de orquestração (Docker/ECS).
 - Logging estruturado via pino (já embutido no Fastify), com correlação por `x-request-id`; access
   log (método/rota/status/duração) com serializers explícitos pra nunca logar headers/cookie de

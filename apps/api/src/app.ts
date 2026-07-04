@@ -11,8 +11,8 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
 import { randomUUID } from 'node:crypto';
-import type { Env } from './shared/config/env.js';
-import { formatErrorResponse } from './shared/infra/exception-handler.js';
+import type { Env } from './infra/config/env.js';
+import { formatErrorResponse } from './infra/exception-handler.js';
 import { identityModule } from './modules/identity/index.js';
 
 // Access log for every request (method/url/status/duration/request-id), on top

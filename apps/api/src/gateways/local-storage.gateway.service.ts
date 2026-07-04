@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { Env } from '../shared/config/env.js';
+import type { Env } from '../infra/config/env.js';
 
 export class LocalStorageGatewayService {
   constructor(private readonly env: Env) {}

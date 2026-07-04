@@ -1,4 +1,4 @@
-import type { Env } from '../shared/config/env.js';
+import type { Env } from '../infra/config/env.js';
 import { LocalStorageGatewayService } from './local-storage.gateway.service.js';
 import { S3StorageGatewayService } from './s3-storage.gateway.service.js';
 
