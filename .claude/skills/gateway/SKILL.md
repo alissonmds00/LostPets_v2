@@ -31,10 +31,10 @@ description: >
   exemplo disso hoje (ver "Migração aplicada").
 - Gateways moram em `apps/api/src/gateways/`, um nível acima de `modules/` — não pertencem a um
   módulo específico, mesmo que hoje só um módulo os use.
-- Convenção de nome: `<serviço>.gateway.ts`, classe `<Serviço>Gateway` (ex: `storage.gateway.ts` →
+- Convenção de nome: `<serviço>.gateway.service.ts`, classe `<Serviço>Gateway` (ex: `storage.gateway.service.ts` →
   `StorageGateway`). Quando há mais de um provedor real (exceção acima), cada um vira
-  `<provedor>-<serviço>.gateway.ts` (ex: `local-storage.gateway.ts`, `s3-storage.gateway.ts`), e o
-  arquivo `<serviço>.gateway.ts` original vira a fábrica que escolhe entre eles.
+  `<provedor>-<serviço>.gateway.service.ts` (ex: `local-storage.gateway.service.ts`, `s3-storage.gateway.service.ts`), e o
+  arquivo `<serviço>.gateway.service.ts` original vira a fábrica que escolhe entre eles.
 - Só o **service** chama um gateway — nunca a rota, nunca o usecase diretamente, nunca o
   repository. Isso espelha a regra do repository: quem orquestra acesso a dado (interno ou
   externo) é o service.
@@ -54,16 +54,16 @@ negócio.
 ## Migração aplicada
 
 O `StorageProvider` (`shared/storage/`, interface + `LocalStorageProvider`/`S3StorageProvider`)
-existia antes dessa decisão e foi consolidado em `gateways/storage.gateway.ts` como uma única
+existia antes dessa decisão e foi consolidado em `gateways/storage.gateway.service.ts` como uma única
 classe `StorageGateway`, que decidia local-disco vs S3 internamente por `env.STORAGE_DRIVER` — sem
 interface. `shared/storage/` foi removido.
 
 Essa decisão foi reaberta em seguida: `storage` genuinamente tem dois provedores reais e
 concretos (disco local em dev, S3 em prod), não um hipotético — então virou a exceção descrita
 acima. Hoje:
-- `gateways/local-storage.gateway.ts` → `LocalStorageGateway`.
-- `gateways/s3-storage.gateway.ts` → `S3StorageGateway`.
-- `gateways/storage.gateway.ts` → só a função `createStorageGateway(env)`, que escolhe uma das duas
+- `gateways/local-storage.gateway.service.ts` → `LocalStorageGateway`.
+- `gateways/s3-storage.gateway.service.ts` → `S3StorageGateway`.
+- `gateways/storage.gateway.service.ts` → só a função `createStorageGateway(env)`, que escolhe uma das duas
   por `env.STORAGE_DRIVER` e devolve o tipo `StorageGateway = LocalStorageGateway |
   S3StorageGateway` (union, sem `interface` declarada).
 - `read()` (leitura crua de disco, usada só pela rota estática dev-only) existe **apenas** em
@@ -74,12 +74,17 @@ acima. Hoje:
 ## Como aplicar
 
 Ao integrar um serviço externo novo:
-1. Crie `apps/api/src/gateways/<serviço>.gateway.ts` com uma classe `<Serviço>Gateway` — métodos
+1. Crie `apps/api/src/gateways/<serviço>.gateway.service.ts` com uma classe `<Serviço>Gateway` — métodos
    que refletem o que o domínio precisa fazer (ex: `send`, `charge`), não os endpoints crus da API
    externa.
 2. A classe recebe config/credenciais (via `Env`) e traduz entre o formato do domínio e o formato
    exigido pelo serviço externo — nada de decisão de negócio aqui dentro.
 3. Só o service do módulo que precisa dessa integração importa e chama o gateway.
+4. Se o gateway precisa validar/tipar o que entra ou sai dele, ele também pode ter seus próprios
+   `<serviço>.schemas.ts` e `<serviço>.dto.ts` dentro de `apps/api/src/gateways/` — mesma convenção
+   de schema→DTO usada nos módulos (ver skill `dto`), um par de arquivos por gateway (não um
+   `dto.ts`/`schemas.ts` compartilhado por todos os gateways, já que cada um é um sistema externo
+   diferente).
 
 ## Se algo não estiver coberto aqui
 

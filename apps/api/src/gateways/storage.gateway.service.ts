@@ -1,6 +1,6 @@
 import type { Env } from '../shared/config/env.js';
-import { LocalStorageGateway } from './local-storage.gateway.js';
-import { S3StorageGateway } from './s3-storage.gateway.js';
+import { LocalStorageGateway } from './local-storage.gateway.service.js';
+import { S3StorageGateway } from './s3-storage.gateway.service.js';
 
 export type StorageGateway = LocalStorageGateway | S3StorageGateway;
 
