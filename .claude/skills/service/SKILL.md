@@ -24,7 +24,7 @@ description: >
   de negócio nele.
 - Entrada e saída do service são tipadas como DTO (ver skill `dto`), nunca como o schema Zod
   diretamente nem como o tipo gerado pelo Prisma.
-- Erros de regra de negócio são lançados como subclasses de `AppError` (`shared/errors`) — nunca
+- Erros de regra de negócio são lançados como subclasses de `AppError` (`infra/errors`) — nunca
   um erro genérico ou um formato de retorno próprio.
 
 **Alternativas consideradas:** service podendo chamar o service de outro módulo em casos pontuais

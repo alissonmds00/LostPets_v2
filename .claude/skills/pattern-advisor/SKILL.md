@@ -157,7 +157,7 @@ pattern-advisor no meio, ela recusa resolver algo fora do que já foi decidido.
 1. Padrão = controller/route handler. Contexto = módulo `pets`.
 2. Sem decisão registrada ainda para "controller" neste projeto.
 3. Leitura da stack: Fastify 5 + `fastify-type-provider-zod`, camadas já documentadas como
-   `route → service → repository`, `shared/errors` com `AppError`.
+   `route → service → repository`, `infra/errors` com `AppError`.
 4. Pesquisa: como projetos Fastify+TS estruturam a camada de entrada HTTP — a maioria não usa uma
    camada "controller" separada da definição da rota (diferente de Nest/Express+MVC); a rota já
    registra o schema Zod e chama o service diretamente.

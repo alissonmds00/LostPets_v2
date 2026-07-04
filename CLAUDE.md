@@ -37,7 +37,7 @@ Postgres runs via Docker (`docker-compose.yml`), exposed on host port **5433** (
 docker compose up -d postgres
 ```
 
-`apps/api` needs a local `.env` (see `apps/api/.env.example`) — `DATABASE_URL`, `SESSION_COOKIE_SECRET` (32+ chars, e.g. `openssl rand -base64 32`), `CORS_ORIGIN`, `STORAGE_DRIVER`, etc. Env vars are validated with Zod on boot (`shared/config/env.ts`) and the app exits immediately with a clear error if config is invalid.
+`apps/api` needs a local `.env` (see `apps/api/.env.example`) — `DATABASE_URL`, `SESSION_COOKIE_SECRET` (32+ chars, e.g. `openssl rand -base64 32`), `CORS_ORIGIN`, `STORAGE_DRIVER`, etc. Env vars are validated with Zod on boot (`infra/config/env.ts`) and the app exits immediately with a clear error if config is invalid.
 
 Tests are Vitest; integration tests are meant to run against a real Postgres (via Docker), not mocks — per [ARCHITECTURE.md](ARCHITECTURE.md), that's a deliberate choice for this project since testing itself is a learning goal. Tests are written before the implementation at every layer (repository, service, usecase) and a task isn't done until they're actually run and passing — see the `testing` skill for the full red-green workflow.
 
@@ -54,7 +54,7 @@ section is only the map.
 
 Each module is internally layered `route → usecase → service → repository`. Every route calls a usecase — even single-module CRUD, there's no `route → service` shortcut. The service is the only thing that calls its own module's repository and applies business rules; the repository is the only thing that talks to Prisma; the service is also the only layer allowed to call a gateway (`apps/api/src/gateways/`) for external-system integration (see "Gateways" below). DTOs (`<module>.dto.ts`, `z.infer` of the module's Zod schemas) are what every layer — route, usecase, service, repository — actually passes around, never the raw Zod schema or a Prisma-generated type.
 
-`apps/api/src/shared/` is cross-cutting, not a domain module: `config` (env loading), `errors` (the `AppError` hierarchy — just the error classes), `infra` (the global exception handler, see below), `db` (Prisma client), `enums` (enums shared across more than one module — module-specific enums live inside their own module instead).
+`apps/api/src/infra/` is the technical/framework-plumbing layer, not a domain module: `config` (env loading), `errors` (the `AppError` hierarchy — just the error classes), the global exception handler (see below), `db` (Prisma client). The criterion for landing here is "technical, no business meaning" — not how many modules currently use it (see the `infra-placement` skill). `apps/api/src/shared/` is now only for cross-cutting *domain* concepts used by more than one module (e.g. `enums` — module-specific enums live inside their own module instead).
 
 `apps/api/src/gateways/` holds integration with external systems (today: storage/S3). Not a domain module, and not inside `shared/` — see "Gateways" below.
 
@@ -64,9 +64,9 @@ Each module is internally layered `route → usecase → service → repository`
 
 ### Exception handling
 
-Centralize the handling, decentralize the creation: errors are thrown where the business rule lives (in a module), but all of them are caught in one place — the global exception handler (`formatErrorResponse` in `shared/infra/exception-handler.ts`, registered via `app.setErrorHandler(...)`). It works generically off `instanceof AppError` (4xx, business error, carries its own `statusCode`/`code`/`message`/`details`) vs. anything else (500, treated as a bug, no detail leaked) — adding a new error class never requires touching this handler. Always `throw new SomeSpecificError(...)`, never a raw string/object.
+Centralize the handling, decentralize the creation: errors are thrown where the business rule lives (in a module), but all of them are caught in one place — the global exception handler (`formatErrorResponse` in `infra/exception-handler.ts`, registered via `app.setErrorHandler(...)`). It works generically off `instanceof AppError` (4xx, business error, carries its own `statusCode`/`code`/`message`/`details`) vs. anything else (500, treated as a bug, no detail leaked) — adding a new error class never requires touching this handler. Always `throw new SomeSpecificError(...)`, never a raw string/object.
 
-Generic, reusable-anywhere errors (`NotFoundError`, `UnauthorizedError`, `ForbiddenError`, `ConflictError`) live in `shared/errors/app-error.ts`. An error tied to one module's business rule gets its own subclass in `modules/<module>/errors.ts` instead of being forced into a generic one.
+Generic, reusable-anywhere errors (`NotFoundError`, `UnauthorizedError`, `ForbiddenError`, `ConflictError`) live in `infra/errors/app-error.ts`. An error tied to one module's business rule gets its own subclass in `modules/<module>/errors.ts` instead of being forced into a generic one.
 
 ### Logging
 
