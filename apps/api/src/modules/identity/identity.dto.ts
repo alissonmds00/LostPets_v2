@@ -4,6 +4,7 @@ import type {
   loginBodySchema,
   loginResponseSchema,
   loginResultSchema,
+  meResponseSchema,
   registerUserBodySchema,
   sessionWithUserSchema,
   userResponseSchema,
@@ -42,3 +43,7 @@ export type LoginResponseDto = z.infer<typeof loginResponseSchema>;
 // interfaces, even for internal shapes). The usecase reads `session` to set
 // the cookie and `user` to build the LoginResponseDto.
 export type LoginResultDto = z.infer<typeof loginResultSchema>;
+
+// Response body for GET /api/identity/me — same shape as AuthenticatedUserDto
+// (see meResponseSchema for why this isn't UserDto).
+export type GetMeResultDto = z.infer<typeof meResponseSchema>;

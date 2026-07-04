@@ -2,19 +2,21 @@ import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { Env } from '../../infra/config/env.js';
+import { getMeUsecase } from '../../usecases/get-me.usecase.js';
 import { loginUsecase } from '../../usecases/login.usecase.js';
 import { logoutUsecase } from '../../usecases/logout.usecase.js';
 import { registerUserUsecase } from '../../usecases/register-user.usecase.js';
 import {
   loginBodySchema,
   loginResponseSchema,
+  meResponseSchema,
   registerUserBodySchema,
   userResponseSchema,
 } from './identity.schema.js';
 
 // Session infra (password hashing, session repository, requireAuth/requireRole
-// decorators — see auth.ts) is already built. `me` is a separate task built
-// on top of this, see PLAN.md phase 1.
+// decorators — see auth.ts) is already built. register/login/logout/me are
+// all in place now, see PLAN.md phase 1.
 export async function identityModule(
   app: FastifyInstance,
   opts: FastifyPluginOptions & { env: Env },
@@ -113,6 +115,29 @@ export async function identityModule(
 
       reply.clearCookie(cookieName, { path: '/' });
       reply.status(204).send(null);
+    },
+  );
+
+  app.withTypeProvider<ZodTypeProvider>().get(
+    '/me',
+    {
+      // requireAuth already throws UnauthorizedError (401) itself when the
+      // cookie is missing/invalid or the session doesn't exist/is expired —
+      // this route doesn't re-check that, see the auth-middleware skill.
+      preHandler: app.requireAuth,
+      schema: {
+        summary: 'Retorna o usuário autenticado',
+        description:
+          'Lê a sessão a partir do cookie httpOnly assinado e retorna o usuário autenticado. Retorna 401 se não houver sessão válida.',
+        tags: ['identity'],
+        response: { 200: meResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      // request.user is guaranteed set here: requireAuth ran as preHandler
+      // and would have thrown before reaching this handler otherwise.
+      const user = await getMeUsecase(request.user!);
+      reply.send(user);
     },
   );
 }
