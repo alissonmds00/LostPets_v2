@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { sessionWithUserSchema } from './schemas.js';
+import type { sessionWithUserSchema } from './identity.schema.js';
 
 export type SessionWithUserDto = z.infer<typeof sessionWithUserSchema>;
 

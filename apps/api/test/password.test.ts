@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hashPassword, verifyPassword } from '../../../src/modules/identity/password.js';
+import { hashPassword, verifyPassword } from '../src/infra/password.js';
 
 describe('hashPassword / verifyPassword', () => {
   it('hashes a plain password into something different from the original', async () => {
