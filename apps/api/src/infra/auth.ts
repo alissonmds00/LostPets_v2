@@ -1,9 +1,9 @@
 import fp from 'fastify-plugin';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { Env } from '../../shared/config/env.js';
-import { ForbiddenError, UnauthorizedError } from '../../shared/errors/app-error.js';
-import { IdentityRepository } from './identity.repository.js';
-import type { AuthenticatedUserDto } from './identity.dto.js';
+import type { Env } from './config/env.js';
+import { ForbiddenError, UnauthorizedError } from './errors/app-error.js';
+import { IdentityRepository } from '../modules/identity/identity.repository.js';
+import type { AuthenticatedUserDto } from '../modules/identity/identity.dto.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -19,14 +19,20 @@ declare module 'fastify' {
   }
 }
 
+// Lives in infra/ (not modules/identity/), even though it depends on
+// IdentityRepository for its session lookup: this is cross-cutting request
+// middleware, needed by every domain module that has authenticated routes
+// (pets, messaging, moderation), not identity-exclusive business logic. It's
+// not owned by the module whose data it happens to query — see the
+// auth-middleware skill for the full reasoning.
+//
 // Registered from app.ts (not nested inside identityModule's own
 // app.register(...) call) so the decorators it adds land on the root Fastify
-// instance and are visible to every module registered as a sibling — pets,
-// messaging, moderation all need requireAuth/requireRole once their routes
-// exist, not just identity's own routes. Wrapping with fastify-plugin (`fp`)
-// reinforces that even if this ever gets nested: fp opts the plugin out of
-// Fastify's default encapsulation, so its decorators still attach to the
-// parent scope instead of being trapped in a child context.
+// instance and are visible to every module registered as a sibling. Wrapping
+// with fastify-plugin (`fp`) reinforces that even if this ever gets nested:
+// fp opts the plugin out of Fastify's default encapsulation, so its
+// decorators still attach to the parent scope instead of being trapped in a
+// child context.
 //
 // register/login/logout/me routes are NOT built here — this only wires the
 // reusable requireAuth/requireRole hooks so those routes (built in later

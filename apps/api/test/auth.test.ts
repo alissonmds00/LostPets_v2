@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildApp } from '../../../src/app.js';
-import type { Env } from '../../../src/shared/config/env.js';
-import { prisma } from '../../../src/shared/db/prisma.js';
+import { buildApp } from '../src/app.js';
+import type { Env } from '../src/infra/config/env.js';
+import { prisma } from '../src/infra/db/prisma.js';
 
 const testEnv: Env = {
   NODE_ENV: 'test',

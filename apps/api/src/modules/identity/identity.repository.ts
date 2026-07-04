@@ -1,4 +1,4 @@
-import { prisma } from '../../shared/db/prisma.js';
+import { prisma } from '../../infra/db/prisma.js';
 import type { SessionWithUserDto } from './identity.dto.js';
 
 export class IdentityRepository {

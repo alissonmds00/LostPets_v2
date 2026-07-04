@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { prisma } from '../../../src/shared/db/prisma.js';
+import { prisma } from '../../../src/infra/db/prisma.js';
 import { IdentityRepository } from '../../../src/modules/identity/identity.repository.js';
 
 describe('IdentityRepository', () => {
