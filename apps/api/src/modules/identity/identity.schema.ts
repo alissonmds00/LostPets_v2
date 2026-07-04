@@ -83,3 +83,14 @@ export const loginResultSchema = z.object({
   session: sessionWithUserSchema.pick({ id: true, userId: true, expiresAt: true, createdAt: true }),
   user: sessionWithUserSchema.shape.user,
 });
+
+// Response body for GET /api/identity/me. Deliberately reuses the same
+// `{ id, email, name, role }` shape as `sessionWithUserSchema.shape.user`
+// (== AuthenticatedUserDto, what requireAuth attaches to `request.user`)
+// instead of `userResponseSchema` (which additionally has `createdAt`):
+// requireAuth never fetches `createdAt`, and `/me` only needs to echo back
+// the already-authenticated user, not re-query the repository for a field
+// nothing asked for. If a caller later needs `createdAt` here too, that's a
+// deliberate schema change (and an extra repository lookup), not a shape
+// this route already happens to have.
+export const meResponseSchema = sessionWithUserSchema.shape.user;
