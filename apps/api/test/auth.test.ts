@@ -10,6 +10,7 @@ const testEnv: Env = {
   DATABASE_URL: 'postgresql://postgres:postgres@localhost:5433/lost_pets_test?schema=public',
   SESSION_COOKIE_NAME: 'lost_pets_sid',
   SESSION_COOKIE_SECRET: 'a'.repeat(32),
+  SESSION_TTL_DAYS: 7,
   CORS_ORIGIN: 'http://localhost:5173',
   STORAGE_DRIVER: 'local',
   STORAGE_LOCAL_DIR: './uploads',

@@ -6,6 +6,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   SESSION_COOKIE_NAME: z.string().default('lost_pets_sid'),
   SESSION_COOKIE_SECRET: z.string().min(32),
+  SESSION_TTL_DAYS: z.coerce.number().int().positive().default(7),
   CORS_ORIGIN: z.string().min(1),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   STORAGE_LOCAL_DIR: z.string().default('./uploads'),
