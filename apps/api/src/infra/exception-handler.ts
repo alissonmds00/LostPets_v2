@@ -1,4 +1,5 @@
 import { ZodError } from 'zod';
+import { hasZodFastifySchemaValidationErrors } from 'fastify-type-provider-zod';
 import { AppError } from './errors/app-error.js';
 
 export interface ErrorResponse {
@@ -27,6 +28,21 @@ export function formatErrorResponse(error: unknown): ErrorResponse {
       statusCode: 400,
       body: {
         error: { code: 'VALIDATION_ERROR', message: 'Dados inválidos', details: error.flatten() },
+      },
+    };
+  }
+
+  // fastify-type-provider-zod's validatorCompiler (v4) never throws a raw
+  // ZodError for a request body/params/querystring/headers failure — it
+  // returns a Fastify FST_ERR_VALIDATION error carrying a `.validation` array
+  // instead (the ZodError branch above only ever catches a ZodError thrown
+  // directly by application code, not by Fastify's schema validation). This
+  // is the library's own documented type guard for that case.
+  if (hasZodFastifySchemaValidationErrors(error)) {
+    return {
+      statusCode: 400,
+      body: {
+        error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.validation },
       },
     };
   }
