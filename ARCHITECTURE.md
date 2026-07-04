@@ -17,6 +17,7 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
 | Autorização | Campo `role` no usuário (`USER` / `ADMIN`) | suficiente para moderação, sem RBAC complexo |
 | Mensagens diretas | WebSocket via `@fastify/websocket`, atrelada a um anúncio | usuário optou por tempo real; sem etapa de aprovação prévia (avaliado e recusado conscientemente) |
 | Fotos | Gateway `createStorageGateway` (`gateways/storage.gateway.service.ts`), escolhe `LocalStorageGateway` (dev) vs `S3StorageGateway` (prod via `@aws-sdk/client-s3`) por `STORAGE_DRIVER` | mantém a app "pronta para AWS" sem acoplar no S3 agora |
+| Cadastro de pet | Fila SQS via `PetsRegistrationQueueGateway` (`gateways/pets-registration-queue.gateway.service.ts`) — LocalStack (dev, `SQS_ENDPOINT`) e SQS real (prod) são o mesmo protocolo, só muda o endpoint, então é uma classe única (não a exceção usada em storage) | evita perder o cadastro se o banco estiver sobrecarregado: a rota enfileira e responde, um consumidor assíncrono persiste depois (desenho do consumidor adiado pra Fase 2, ver PLAN.md) |
 | Upload de foto | Validação de tipo/tamanho + geração de thumbnail (`sharp`) | decisão consciente de aceitar a complexidade extra |
 | Geolocalização | lat/lng + fórmula de distância direto na query SQL, sem PostGIS | mantido simples deliberadamente |
 | Exclusão | Soft delete (`deletedAt`) em usuários e anúncios | denúncias/moderação precisam referenciar anúncios mesmo depois de removidos |
@@ -59,6 +60,8 @@ orquestra os services dos módulos envolvidos. Isso é o que torna isso um monol
 
 ## Pontos em aberto (deferidos conscientemente)
 
+- Desenho do consumidor da fila SQS de cadastro de pet — worker separado (`apps/worker`) vs poller
+  dentro do próprio `apps/api`; decidido junto com a Fase 2 (ver PLAN.md).
 - Framework do frontend (`apps/web`).
 - Prefixo de versionamento de API (`/v1`).
 - Pipeline de CI (GitHub Actions).
