@@ -46,6 +46,12 @@ provedor; interface formal (`interface StorageGateway {}`) — rejeitada em favo
 estrutural (union type), simples o bastante pra dois provedores sem precisar declarar um contrato
 à parte.
 
+**Cuidado ao aplicar a exceção:** "ambiente diferente" não é sinônimo de "provedor diferente".
+LocalStack (dev) e o SQS real da AWS (prod) usam o mesmo SDK e protocolo (`@aws-sdk/client-sqs`) —
+só o endpoint muda via env (`SQS_ENDPOINT`, ausente em prod). Isso é o caso **default** (uma classe
+só, `PetsRegistrationQueueGateway`), não a exceção — diferente de `storage`, onde disco local e S3
+são protocolos genuinamente diferentes (sistema de arquivos vs API HTTP).
+
 **Verificado com base em:** o padrão de **Gateway** (Martin Fowler, Patterns of Enterprise
 Application Architecture) — um objeto que encapsula acesso a um sistema externo, contendo só a
 lógica de tradução entre os termos do domínio e os termos do sistema externo, nada de regra de
@@ -70,6 +76,13 @@ acima. Hoje:
   `LocalStorageGateway` — não foi replicado em `S3StorageGateway` só pra bater a forma, porque S3
   genuinamente não serve esse caso (ver skill `exception-handler`: nunca force um método que lança
   "not supported" só pra imitar uma interface).
+
+`gateways/pets-registration-queue.gateway.service.ts` → `PetsRegistrationQueueGateway` (registrado
+em 2026-07-04): fila SQS pro cadastro de pet (evita perda de cadastro por sobrecarga do banco —
+rota enfileira e responde, um consumidor assíncrono persiste depois; desenho do consumidor
+adiado pra Fase 2, ver PLAN.md). Segue o **default** (classe única, sem interface) — não a exceção
+de `storage` — porque LocalStack e o SQS real são o mesmo protocolo, só o endpoint muda (ver
+"Cuidado ao aplicar a exceção" acima).
 
 ## Como aplicar
 

@@ -8,6 +8,7 @@ Roteiro para retomar a implementação em uma sessão futura. Ver [ARCHITECTURE.
 - [x] Fastify + Zod + Prisma configurados e validados (`/health` respondendo, migration `init` aplicada)
 - [x] Módulos `identity/pets/messaging/moderation` como pastas com fronteira definida
 - [x] `shared/config`, `shared/errors`, `shared/db` implementados; `gateways/storage.gateway.service.ts` (local + S3) implementado
+- [x] `gateways/pets-registration-queue.gateway.service.ts` (produtor SQS) implementado; LocalStack 4.12.0 no `docker-compose.yml` pra simular a fila em dev
 - [x] docker-compose (Postgres na porta host `5433` — 5432 pode estar ocupado por um Postgres nativo local)
 - [x] Vitest configurado, 1 teste passando (`test/health.test.ts`)
 - [x] ESLint + Prettier na raiz
@@ -27,7 +28,8 @@ Roteiro para retomar a implementação em uma sessão futura. Ver [ARCHITECTURE.
 ## Fase 2 — `pets` (+ storage)
 
 - [ ] Modelar no `schema.prisma`: `PetListing` (tipo `LOST | FOUND | DONATION`, título, descrição, espécie, lat/lng, cidade, `status` `ACTIVE | RESOLVED | CANCELLED`, `ownerId`, `deletedAt`), `PetPhoto` (chave de storage, url, ordem, `listingId`)
-- [ ] `POST /api/pets` — cria anúncio (autenticado), aceita upload via `@fastify/multipart`, valida tipo/tamanho, gera thumbnail com `sharp`, salva via `StorageGateway`
+- [ ] `POST /api/pets` — cria anúncio (autenticado), aceita upload via `@fastify/multipart`, valida tipo/tamanho, gera thumbnail com `sharp`, salva via `StorageGateway`; o registro em si é assíncrono — o usecase valida e publica na fila via `PetsRegistrationQueueGateway` (`enqueue-then-persist`, decidido em 2026-07-04 pra não perder cadastro se o banco estiver sobrecarregado), a rota responde 202, e um consumidor separado persiste no Postgres depois
+- [ ] Desenhar o consumidor da fila: worker separado (`apps/worker`) vs poller dentro do próprio `apps/api` — decisão adiada até chegar nesta fase; consumidor chama o mesmo usecase/service de `pets` pra persistir, nunca grava direto na tabela
 - [ ] `GET /api/pets` — lista paginada (offset/limit), filtros por tipo, espécie, cidade, e busca por raio (lat/lng + fórmula de distância em SQL raw via Prisma `$queryRaw`)
 - [ ] `GET /api/pets/:id`, `PATCH /api/pets/:id` (só o dono), `DELETE /api/pets/:id` (soft delete, só o dono ou admin)
 - [ ] Ao soft-deletar, decidir e implementar o que acontece com as fotos no storage (manter ou remover — hoje em aberto)

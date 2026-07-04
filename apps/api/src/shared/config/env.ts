@@ -11,6 +11,11 @@ const envSchema = z.object({
   STORAGE_LOCAL_DIR: z.string().default('./uploads'),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),
+  SQS_QUEUE_URL: z.string().min(1),
+  SQS_REGION: z.string().min(1),
+  // Only set in dev, pointing at LocalStack; absent in prod so the AWS SDK
+  // falls back to the real regional SQS endpoint.
+  SQS_ENDPOINT: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
