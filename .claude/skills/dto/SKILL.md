@@ -20,6 +20,10 @@ description: >
 - **Todas as camadas usam o DTO, não o schema Zod diretamente nem o tipo gerado pelo Prisma** —
   rota, usecase, service e repository importam de `<módulo>.dto.ts`. O repository também é tipado
   com o DTO, não com `Prisma.XCreateInput`/tipo do model gerado.
+- **Gateways também podem ter schema + DTO** (ver skill `gateway`), seguindo a mesma lógica: um
+  `<serviço>.schemas.ts` + `<serviço>.dto.ts` por gateway em `apps/api/src/gateways/` — não um
+  arquivo compartilhado entre todos os gateways, já que cada um encapsula um sistema externo
+  diferente (não são um "módulo" único como `pets`/`identity`).
 - Convenção de nome: PascalCase com sufixo `Dto` (`CreatePetDto`, `UpdatePetDto`,
   `PetResponseDto`).
 
