@@ -1,5 +1,5 @@
 import { UnauthorizedError } from '../../infra/errors/app-error.js';
-import { hashPassword, verifyPassword } from '../../infra/password.js';
+import { getDummyPasswordHash, hashPassword, verifyPassword } from '../../infra/password.js';
 import type { IdentityRepository } from './identity.repository.js';
 import type {
   LoginBodyDto,
@@ -28,7 +28,15 @@ export class IdentityService {
 
   async login(credentials: LoginBodyDto): Promise<LoginResultDto> {
     const user = await this.repository.findByEmail(credentials.email);
-    if (!user) throw new UnauthorizedError('Credenciais inválidas');
+    if (!user) {
+      // Pay the same argon2 CPU cost as the "wrong password" path below so
+      // the two failure responses take the same amount of time — otherwise
+      // response latency leaks whether an email is registered, even though
+      // both paths throw the same error message. See SECURITY-AUDIT.md,
+      // section 4, item 1.
+      await verifyPassword(await getDummyPasswordHash(), credentials.password);
+      throw new UnauthorizedError('Credenciais inválidas');
+    }
 
     const passwordMatches = await verifyPassword(user.passwordHash, credentials.password);
     if (!passwordMatches) throw new UnauthorizedError('Credenciais inválidas');
