@@ -1,4 +1,5 @@
 import { ZodError } from 'zod';
+import { hasZodFastifySchemaValidationErrors } from 'fastify-type-provider-zod';
 import { AppError } from './errors/app-error.js';
 
 export interface ErrorResponse {
@@ -27,6 +28,21 @@ export function formatErrorResponse(error: unknown): ErrorResponse {
       statusCode: 400,
       body: {
         error: { code: 'VALIDATION_ERROR', message: 'Dados inválidos', details: error.flatten() },
+      },
+    };
+  }
+
+  // fastify-type-provider-zod's validatorCompiler doesn't throw a raw ZodError
+  // for a request body/params/querystring that fails schema validation — it
+  // wraps each Zod issue into Fastify's own `error.validation` array (see
+  // hasZodFastifySchemaValidationErrors), which is what actually reaches this
+  // handler on an invalid request body. Same 400 shape as the ZodError branch
+  // above, just recognizing the wrapped form.
+  if (hasZodFastifySchemaValidationErrors(error)) {
+    return {
+      statusCode: 400,
+      body: {
+        error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.validation },
       },
     };
   }

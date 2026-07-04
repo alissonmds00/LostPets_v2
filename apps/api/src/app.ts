@@ -106,7 +106,7 @@ export function buildApp(env: Env) {
   // Each module owns its own routes/service/repository and only reaches into
   // its own Prisma models. Cross-module calls go through another module's
   // exported service, never straight into its tables.
-  app.register(identityModule, { prefix: '/api/identity' });
+  app.register(identityModule, { prefix: '/api/identity', env });
   // pets, messaging and moderation modules are registered here as they're
   // built — see PLAN.md for build order and scope.
 
