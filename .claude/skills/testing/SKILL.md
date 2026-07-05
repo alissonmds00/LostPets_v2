@@ -12,21 +12,24 @@ description: >
 
 # Testing
 
-## Decisão (registrada em 2026-07-03)
+## Decisão (registrada em 2026-07-03, revisada em 2026-07-04)
 
 - **Teste vem antes da implementação, em cada camada** — usecase, service e repository ganham
   cada um seu próprio teste escrito antes do código que ele testa, não só um teste de ponta a
   ponta por feature.
 - **Todo teste é comportamental**: testa o resultado observável de chamar a coisa (o que ela
-  retorna, que erro lança, o que fica salvo), nunca implementação interna. Nenhuma camada mocka um
-  colaborador interno — é consistente com a decisão já fixada em
-  [ARCHITECTURE.md](../../../ARCHITECTURE.md) de rodar integração contra Postgres real via Docker,
-  não mocks.
+  retorna, que erro lança, o que fica salvo), nunca implementação interna.
   - **Usecase:** teste de API via `app.inject()` do Fastify — chama a rota de verdade, com
-    usecase, service e repository reais por baixo, banco real.
-  - **Service:** chama o método do service diretamente (sem passar pela rota), ainda contra
-    repository e banco reais.
-  - **Repository:** chama o método do repository direto contra o Postgres real (via Docker).
+    usecase, service e repository reais por baixo, banco real. Continua sem mock — é o teste de
+    integração de ponta a ponta da feature.
+  - **Service: mocka o repository** (revisado em 2026-07-04). O service recebe um repository
+    fake/mock (ex: `vi.fn()`/objeto com métodos stubados) via o mesmo construtor usado em produção
+    — testa só a regra de negócio do service isolada (o que ele decide, que erro lança, com quais
+    argumentos chama o repository), sem precisar do Postgres rodando pra esse nível. Nenhum outro
+    colaborador do service é mockado além do repository (ex: se o service um dia depender de outro
+    serviço/gateway, mocka também — mas não mocka partes do próprio service).
+  - **Repository:** chama o método do repository direto contra o Postgres real (via Docker) — não
+    tem como mockar aqui, é a própria integração com o banco que está sendo testada.
 - **Ciclo obrigatório (red → green):**
   1. Escreva o teste primeiro.
   2. Rode o teste e confirme que ele falha — e falha pelo **motivo certo** (a funcionalidade não
@@ -38,26 +41,35 @@ description: >
   conta — é exatamente o motivo do passo 2 do ciclo acima: sem ver o vermelho primeiro, não dá pra
   confiar no verde depois.
 
-**Alternativas consideradas:** mockar o repository nos testes de service (rejeitado — contraria a
-decisão já fixada de rodar contra banco real, e reintroduziria exatamente o tipo de teste
-acoplado-à-implementação que a abordagem comportamental evita); testar só no nível de usecase, sem
-teste isolado de service/repository (rejeitado pelo usuário em favor de cobertura em cada camada).
+**Alternativas consideradas (2026-07-03):** mockar o repository nos testes de service (inicialmente
+rejeitado, depois revertido em 2026-07-04 — ver revisão abaixo); testar só no nível de usecase, sem
+teste isolado de service/repository (rejeitado pelo usuário em favor de cobertura em cada camada,
+decisão que continua valendo).
 
-**Verificado com base em:** a abordagem clássica de TDD ("Chicago school") — testar contra a
-interface pública/resultado observável do sistema, evitando mock de colaborador interno, porque
-isso deixa o teste acoplado a como o código é escrito por dentro, não ao que ele deveria fazer; e o
-suporte nativo do Fastify a testes de rota via `app.inject()`, sem precisar de lib externa tipo
-supertest.
+**Revisão de 2026-07-04:** o usuário pediu explicitamente que os testes usem mock em vez de chamada
+de classe concreta. Decisão tomada via skill `pattern-advisor`: mock só na camada de service
+(repository continua contra banco real; usecase/rota continua sem mock, contra service+repository+
+banco reais). Escopo: aplica-se retroativamente também ao módulo `identity` já mesclado, não só a
+módulos novos (`pets` em diante) — os testes de service já escritos foram reescritos para mockar o
+repository em vez de rodar contra Postgres real.
+
+**Verificado com base em:** a abordagem clássica de TDD ("Chicago school", contra a interface
+pública/resultado observável) permanece para repository e usecase; para service, adotada a
+abordagem "London school" (mock de colaborador direto) especificamente para essa camada, por
+decisão explícita do usuário — service isolado do banco fica mais rápido de rodar e testa a regra
+de negócio sem depender de estado de dados externo.
 
 ## Como aplicar
 
 Ao implementar uma rota/usecase novo:
 1. Escreva o teste de repository (contra Postgres real) e rode — deve falhar porque o método não
    existe. Implemente o repository até passar.
-2. Escreva o teste de service (chamando o método direto, repository real por baixo) e rode — deve
-   falhar. Implemente o service até passar.
-3. Escreva o teste de usecase (via `app.inject()` na rota) e rode — deve falhar. Implemente
-   usecase + rota até passar.
+2. Escreva o teste de service **mockando o repository** (ex: `{ create: vi.fn(), findByEmail:
+   vi.fn(), ... }` passado no lugar do repository real no construtor do service) e rode — deve
+   falhar. Implemente o service até passar. Verifique tanto o retorno/erro do service quanto, onde
+   fizer sentido, com quais argumentos o mock do repository foi chamado.
+3. Escreva o teste de usecase (via `app.inject()` na rota, sem mock, repository e banco reais) e
+   rode — deve falhar. Implemente usecase + rota até passar.
 4. Arquivos de teste ficam em `apps/api/test/`, espelhando a estrutura de módulos/usecases —
    mesma convenção já usada em `test/health.test.ts`.
 
