@@ -23,11 +23,42 @@ export const petPhotoInputSchema = z.object({
   order: z.number().int().nonnegative().describe('Ordem de exibição da foto'),
 });
 
+// Foto ainda crua, extraída do multipart pela rota (buffer + content-type),
+// antes de validação/thumbnail/storage — é o que o service de submissão
+// recebe para processar. Não é um schema de wire (nunca trafega como JSON,
+// buffer não é serializável), mas segue a mesma convenção de derivar todo DTO
+// de um schema Zod (ver skill dto), inclusive para shapes internas.
+export const rawPetPhotoUploadSchema = z.object({
+  buffer: z.instanceof(Buffer),
+  contentType: z.string().min(1),
+});
+
+// Input completo do service PetsService.submitListingForRegistration: os
+// campos de texto já validados (mesmo shape do input de criação, com
+// `ownerId` resolvido da sessão) + as fotos ainda cruas.
+export const submitListingForRegistrationInputSchema = createPetListingInputSchema.extend({
+  photos: z.array(rawPetPhotoUploadSchema),
+});
+
 // Dado que o repository recebe para persistir um `PetListing` + suas
 // `PetPhoto[]` numa única transação — é o que o futuro worker consumidor da
 // fila monta depois de processar o upload das fotos.
 export const createPetListingSchema = createPetListingInputSchema.extend({
   photos: z.array(petPhotoInputSchema).describe('Fotos já processadas do anúncio'),
+});
+
+// Campos de texto do POST /api/pets — mesmo shape de createPetListingInputSchema
+// sem `ownerId`, já que o dono vem da sessão autenticada (request.user.id),
+// nunca do corpo da requisição.
+export const submitPetListingBodySchema = createPetListingInputSchema.omit({ ownerId: true });
+
+// Resposta da rota de submissão: o anúncio ainda não foi persistido (desenho
+// enqueue-then-persist, ver PLAN.md fase 2 — quem persiste de fato é o
+// poller/worker consumidor da fila, tarefa separada), então não há um
+// PetListingDto completo pra devolver aqui. Corpo mínimo confirmando que a
+// submissão foi aceita e publicada na fila.
+export const submitPetListingResponseSchema = z.object({
+  received: z.boolean(),
 });
 
 // Shape de uma foto como persistida/retornada pelo repository.
