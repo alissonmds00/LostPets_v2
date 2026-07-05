@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { buildApp } from '../../src/app.js';
-import type { Env } from '../../src/infra/config/env.js';
-import { ConflictError } from '../../src/infra/errors/app-error.js';
-import type { IdentityService } from '../../src/modules/identity/identity.service.js';
+import { buildApp } from '../../../src/app.js';
+import type { Env } from '../../../src/infra/config/env.js';
+import { ConflictError } from '../../../src/infra/errors/app-error.js';
+import type { IdentityService } from '../../../src/modules/identity/identity.service.js';
 
 const testEnv: Env = {
   NODE_ENV: 'test',

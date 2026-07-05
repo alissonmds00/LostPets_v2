@@ -1,5 +1,5 @@
-import type { IdentityService } from '../modules/identity/identity.service.js';
-import type { RegisterUserInputDto, UserDto } from '../modules/identity/identity.dto.js';
+import type { IdentityService } from './identity.service.js';
+import type { RegisterUserInputDto, UserDto } from './identity.dto.js';
 
 // Single-module operation today (only orchestrates identity's own service),
 // but every route still goes through a usecase per the usecase skill — no

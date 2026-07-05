@@ -1,4 +1,4 @@
-import type { AuthenticatedUserDto, GetMeResultDto } from '../modules/identity/identity.dto.js';
+import type { AuthenticatedUserDto, GetMeResultDto } from './identity.dto.js';
 
 // Lives in usecases/ per the usecase skill: every route goes through a
 // usecase, even one this simple — no route -> straight response shortcut.

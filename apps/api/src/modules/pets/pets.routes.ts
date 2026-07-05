@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { submitPetListingUsecase } from '../../usecases/submit-pet-listing.usecase.js';
+import { submitPetListingUsecase } from './submit-pet-listing.usecase.js';
 import { submitPetListingBodySchema, submitPetListingResponseSchema } from './pets.schema.js';
 import type { RawPetPhotoUploadDto } from './pets.dto.js';
 

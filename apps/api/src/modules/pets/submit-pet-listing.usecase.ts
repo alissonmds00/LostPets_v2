@@ -1,5 +1,5 @@
-import type { PetsService } from '../modules/pets/pets.service.js';
-import type { SubmitListingForRegistrationInputDto } from '../modules/pets/pets.dto.js';
+import type { PetsService } from './pets.service.js';
+import type { SubmitListingForRegistrationInputDto } from './pets.dto.js';
 
 // Single-module operation today (only orchestrates pets' own service), but
 // every route still goes through a usecase per the usecase skill — no
