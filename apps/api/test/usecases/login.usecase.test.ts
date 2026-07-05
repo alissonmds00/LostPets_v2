@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import type { Env } from '../../src/infra/config/env.js';
-import { prisma } from '../../src/infra/db/prisma.js';
-import { hashPassword } from '../../src/infra/password.js';
+import { UnauthorizedError } from '../../src/infra/errors/app-error.js';
+import type { IdentityRepository } from '../../src/modules/identity/identity.repository.js';
+import type { IdentityService } from '../../src/modules/identity/identity.service.js';
+import type { LoginResultDto, SessionWithUserDto } from '../../src/modules/identity/identity.dto.js';
 
 const testEnv: Env = {
   NODE_ENV: 'test',
@@ -19,30 +21,63 @@ const testEnv: Env = {
   SQS_REGION: 'us-east-1',
 };
 
+// POST /login itself only goes through identityService (no requireAuth
+// preHandler), but the last test in this file logs in and then hits a
+// requireAuth-protected route with the resulting cookie — requireAuth reads
+// app.identityRepository directly (see infra/auth.ts), never identityService.
+// So identityService.login and identityRepository.findValidById are mocked
+// together here, sharing the same in-memory session store: when the mocked
+// login "creates" a session, requireAuth's mocked repository lookup can
+// actually find it afterward — see the testing skill's 2026-07-04 revision.
+function buildTestApp(userId: string, userEmail: string, plainPassword: string) {
+  const sessions = new Map<string, SessionWithUserDto>();
+  const safeUser = { id: userId, email: userEmail, name: 'Test User', role: 'USER' as const };
+
+  const identityRepository: Pick<IdentityRepository, 'findValidById'> = {
+    findValidById: vi.fn(async (sessionId: string) => sessions.get(sessionId) ?? null),
+  };
+
+  const identityService: Pick<IdentityService, 'login'> = {
+    login: vi.fn(async ({ email, password }): Promise<LoginResultDto> => {
+      if (email !== userEmail || password !== plainPassword) {
+        throw new UnauthorizedError('Credenciais inválidas');
+      }
+      const sessionId = randomUUID();
+      const session: SessionWithUserDto = {
+        id: sessionId,
+        userId,
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+        user: safeUser,
+      };
+      sessions.set(sessionId, session);
+      return {
+        session: { id: session.id, userId: session.userId, expiresAt: session.expiresAt, createdAt: session.createdAt },
+        user: safeUser,
+      };
+    }),
+  };
+
+  const app = buildApp(testEnv, {
+    identityService: identityService as IdentityService,
+    identityRepository: identityRepository as IdentityRepository,
+  });
+
+  return { app, identityService };
+}
+
 describe('POST /api/identity/login', () => {
   let userId: string;
   let userEmail: string;
   const plainPassword = 'correct-horse-battery-staple';
 
-  beforeEach(async () => {
+  beforeEach(() => {
+    userId = randomUUID();
     userEmail = `${randomUUID()}@example.com`;
-    const user = await prisma.user.create({
-      data: {
-        email: userEmail,
-        passwordHash: await hashPassword(plainPassword),
-        name: 'Test User',
-      },
-    });
-    userId = user.id;
-  });
-
-  afterEach(async () => {
-    await prisma.session.deleteMany({ where: { userId } });
-    await prisma.user.deleteMany({ where: { id: userId } });
   });
 
   it('returns 200, the safe user, and sets a signed session cookie on valid credentials', async () => {
-    const app = buildApp(testEnv);
+    const { app } = buildTestApp(userId, userEmail, plainPassword);
     await app.ready();
 
     const response = await app.inject({
@@ -64,15 +99,12 @@ describe('POST /api/identity/login', () => {
     // The cookie must be valid for requireAuth to accept it later.
     const unsigned = app.unsignCookie(String(setCookie?.value));
     expect(unsigned.valid).toBe(true);
-    const session = await prisma.session.findUnique({ where: { id: String(unsigned.value) } });
-    expect(session).not.toBeNull();
-    expect(session?.userId).toBe(userId);
 
     await app.close();
   });
 
   it('returns 401 and does not set a cookie when the password is wrong', async () => {
-    const app = buildApp(testEnv);
+    const { app } = buildTestApp(userId, userEmail, plainPassword);
     await app.ready();
 
     const response = await app.inject({
@@ -89,7 +121,7 @@ describe('POST /api/identity/login', () => {
   });
 
   it('returns 401 when the email does not exist', async () => {
-    const app = buildApp(testEnv);
+    const { app } = buildTestApp(userId, userEmail, plainPassword);
     await app.ready();
 
     const response = await app.inject({
@@ -104,7 +136,7 @@ describe('POST /api/identity/login', () => {
   });
 
   it('returns 400 when the body is invalid', async () => {
-    const app = buildApp(testEnv);
+    const { app, identityService } = buildTestApp(userId, userEmail, plainPassword);
     await app.ready();
 
     const response = await app.inject({
@@ -114,12 +146,13 @@ describe('POST /api/identity/login', () => {
     });
 
     expect(response.statusCode).toBe(400);
+    expect(identityService.login).not.toHaveBeenCalled();
 
     await app.close();
   });
 
   it('logs in with a session cookie that requireAuth then accepts', async () => {
-    const app = buildApp(testEnv);
+    const { app } = buildTestApp(userId, userEmail, plainPassword);
     app.get(
       '/__test/protected',
       { preHandler: (req, reply) => app.requireAuth(req, reply) },

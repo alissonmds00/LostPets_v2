@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import type { Env } from '../src/infra/config/env.js';
-import { prisma } from '../src/infra/db/prisma.js';
+import type { IdentityRepository } from '../src/modules/identity/identity.repository.js';
+import type { SessionWithUserDto } from '../src/modules/identity/identity.dto.js';
 
 const testEnv: Env = {
   NODE_ENV: 'test',
@@ -19,8 +20,11 @@ const testEnv: Env = {
 };
 
 // Exercises requireAuth/requireRole via a throwaway route registered only in
-// this test — register/login/logout/me (the real routes that will use these
-// decorators) are separate tasks built on top of this session infra.
+// this test. requireAuth's only collaborator is identityRepository (see
+// infra/auth.ts — it calls repository.findValidById directly, never
+// identityService), so an in-memory session store standing in for
+// identityRepository is enough here — no Postgres involved (see the testing
+// skill's 2026-07-04 revision).
 //
 // Awaits app.ready() before returning: @fastify/cookie's signCookie/
 // unsignCookie decorators (and requireAuth/requireRole from authPlugin) are
@@ -28,7 +32,13 @@ const testEnv: Env = {
 // calling app.signCookie(...) right after buildApp() (before boot completes)
 // throws "not a function".
 async function buildTestApp() {
-  const app = buildApp(testEnv);
+  const sessions = new Map<string, SessionWithUserDto>();
+
+  const identityRepository: Pick<IdentityRepository, 'findValidById'> = {
+    findValidById: vi.fn(async (sessionId: string) => sessions.get(sessionId) ?? null),
+  };
+
+  const app = buildApp(testEnv, { identityRepository: identityRepository as IdentityRepository });
   app.get(
     '/__test/protected',
     { preHandler: (req, reply) => app.requireAuth(req, reply) },
@@ -40,32 +50,23 @@ async function buildTestApp() {
     () => ({ ok: true }),
   );
   await app.ready();
-  return app;
+
+  function seedValidSession(sessionId: string, userId: string, role: 'USER' | 'ADMIN' = 'USER') {
+    sessions.set(sessionId, {
+      id: sessionId,
+      userId,
+      expiresAt: new Date(Date.now() + 60_000),
+      createdAt: new Date(),
+      user: { id: userId, email: `${randomUUID()}@example.com`, name: 'Test User', role },
+    });
+  }
+
+  return { app, seedValidSession };
 }
 
 describe('requireAuth / requireRole', () => {
-  let userId: string;
-  let adminId: string;
-
-  beforeEach(async () => {
-    const user = await prisma.user.create({
-      data: { email: `${randomUUID()}@example.com`, passwordHash: 'x', name: 'User' },
-    });
-    userId = user.id;
-
-    const admin = await prisma.user.create({
-      data: { email: `${randomUUID()}@example.com`, passwordHash: 'x', name: 'Admin', role: 'ADMIN' },
-    });
-    adminId = admin.id;
-  });
-
-  afterEach(async () => {
-    await prisma.session.deleteMany({ where: { userId: { in: [userId, adminId] } } });
-    await prisma.user.deleteMany({ where: { id: { in: [userId, adminId] } } });
-  });
-
   it('returns 401 with no session cookie', async () => {
-    const app = await buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await app.inject({ method: 'GET', url: '/__test/protected' });
 
@@ -74,7 +75,7 @@ describe('requireAuth / requireRole', () => {
   });
 
   it('returns 401 with an invalid/unsigned cookie value', async () => {
-    const app = await buildTestApp();
+    const { app } = await buildTestApp();
 
     const response = await app.inject({
       method: 'GET',
@@ -87,11 +88,11 @@ describe('requireAuth / requireRole', () => {
   });
 
   it('attaches request.user and allows access with a valid session cookie', async () => {
-    const app = await buildTestApp();
-    const session = await prisma.session.create({
-      data: { userId, expiresAt: new Date(Date.now() + 60_000) },
-    });
-    const signed = app.signCookie(session.id);
+    const { app, seedValidSession } = await buildTestApp();
+    const userId = randomUUID();
+    const sessionId = randomUUID();
+    seedValidSession(sessionId, userId);
+    const signed = app.signCookie(sessionId);
 
     const response = await app.inject({
       method: 'GET',
@@ -104,11 +105,11 @@ describe('requireAuth / requireRole', () => {
   });
 
   it('attaches request.sessionId with the id of the validated session', async () => {
-    const app = await buildTestApp();
-    const session = await prisma.session.create({
-      data: { userId, expiresAt: new Date(Date.now() + 60_000) },
-    });
-    const signed = app.signCookie(session.id);
+    const { app, seedValidSession } = await buildTestApp();
+    const userId = randomUUID();
+    const sessionId = randomUUID();
+    seedValidSession(sessionId, userId);
+    const signed = app.signCookie(sessionId);
 
     const response = await app.inject({
       method: 'GET',
@@ -117,16 +118,17 @@ describe('requireAuth / requireRole', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json().sessionId).toBe(session.id);
+    expect(response.json().sessionId).toBe(sessionId);
     await app.close();
   });
 
   it('returns 401 for an expired session', async () => {
-    const app = await buildTestApp();
-    const session = await prisma.session.create({
-      data: { userId, expiresAt: new Date(Date.now() - 60_000) },
-    });
-    const signed = app.signCookie(session.id);
+    // Mirrors IdentityRepository.findValidById's own contract: an expired
+    // session is treated the same as a missing one (null), so the mock
+    // simply doesn't seed anything for this sessionId — see
+    // identity.repository.ts.
+    const { app } = await buildTestApp();
+    const signed = app.signCookie(randomUUID());
 
     const response = await app.inject({
       method: 'GET',
@@ -139,11 +141,11 @@ describe('requireAuth / requireRole', () => {
   });
 
   it('returns 403 when requireRole does not match the user role', async () => {
-    const app = await buildTestApp();
-    const session = await prisma.session.create({
-      data: { userId, expiresAt: new Date(Date.now() + 60_000) },
-    });
-    const signed = app.signCookie(session.id);
+    const { app, seedValidSession } = await buildTestApp();
+    const userId = randomUUID();
+    const sessionId = randomUUID();
+    seedValidSession(sessionId, userId, 'USER');
+    const signed = app.signCookie(sessionId);
 
     const response = await app.inject({
       method: 'GET',
@@ -156,11 +158,11 @@ describe('requireAuth / requireRole', () => {
   });
 
   it('returns 200 when requireRole matches the user role', async () => {
-    const app = await buildTestApp();
-    const session = await prisma.session.create({
-      data: { userId: adminId, expiresAt: new Date(Date.now() + 60_000) },
-    });
-    const signed = app.signCookie(session.id);
+    const { app, seedValidSession } = await buildTestApp();
+    const adminId = randomUUID();
+    const sessionId = randomUUID();
+    seedValidSession(sessionId, adminId, 'ADMIN');
+    const signed = app.signCookie(sessionId);
 
     const response = await app.inject({
       method: 'GET',
