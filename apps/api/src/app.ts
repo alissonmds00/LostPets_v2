@@ -37,7 +37,17 @@ const requestLogSerializers = {
   res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
 };
 
-export function buildApp(env: Env) {
+// Test-only escape hatch (see the testing skill's 2026-07-04 revision):
+// production always calls buildApp(env) with no overrides, so the branches
+// below fall through to instantiating the real repository/service. Tests
+// pass a mocked service and/or repository instead, so app.inject() exercises
+// the HTTP contract (validation, status codes, cookies) without touching
+// Postgres. Add a field here per module as more services/repositories exist
+// that a test needs to substitute — today only identity has both.
+export function buildApp(
+  env: Env,
+  overrides?: { identityService?: IdentityService; identityRepository?: IdentityRepository },
+) {
   const app = Fastify({
     logger:
       env.NODE_ENV === 'test'
@@ -88,9 +98,16 @@ export function buildApp(env: Env) {
   // registered afterward, no fastify-plugin wrapping needed for this
   // direction (unlike authPlugin below, whose decorators need to bubble *up*
   // to the parent instead of down to children).
-  const identityRepository = new IdentityRepository();
+  // requireAuth/requireRole (authPlugin below) always read
+  // app.identityRepository directly — even when a test overrides
+  // identityService only, the real repository is still built here so
+  // requireAuth keeps working for any route it guards in that test.
+  const identityRepository = overrides?.identityRepository ?? new IdentityRepository();
   app.decorate('identityRepository', identityRepository);
-  app.decorate('identityService', new IdentityService(identityRepository, env.SESSION_TTL_DAYS));
+  app.decorate(
+    'identityService',
+    overrides?.identityService ?? new IdentityService(identityRepository, env.SESSION_TTL_DAYS),
+  );
 
   // Registered at root (not nested inside identityModule's own
   // app.register(...) below) so requireAuth/requireRole are visible to every

@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import type { Env } from '../../src/infra/config/env.js';
-import { prisma } from '../../src/infra/db/prisma.js';
+import type { IdentityRepository } from '../../src/modules/identity/identity.repository.js';
+import type { SessionWithUserDto } from '../../src/modules/identity/identity.dto.js';
 
 const testEnv: Env = {
   NODE_ENV: 'test',
@@ -18,16 +19,22 @@ const testEnv: Env = {
   SQS_REGION: 'us-east-1',
 };
 
+// GET /me's only preHandler is requireAuth, and getMeUsecase itself never
+// calls identityService (see src/usecases/get-me.usecase.ts — it just
+// formats request.user, already attached by requireAuth). So only
+// identityRepository needs mocking here — requireAuth is the sole
+// collaborator these tests exercise (see the testing skill's 2026-07-04
+// revision).
+function buildTestApp(findValidById: IdentityRepository['findValidById']) {
+  const identityRepository: Pick<IdentityRepository, 'findValidById'> = {
+    findValidById: vi.fn(findValidById),
+  };
+  return buildApp(testEnv, { identityRepository: identityRepository as IdentityRepository });
+}
+
 describe('GET /api/identity/me', () => {
-  let userId: string;
-
-  afterEach(async () => {
-    await prisma.session.deleteMany({ where: { userId } });
-    await prisma.user.deleteMany({ where: { id: userId } });
-  });
-
   it('returns 401 with no session cookie', async () => {
-    const app = buildApp(testEnv);
+    const app = buildTestApp(async () => null);
     await app.ready();
 
     const response = await app.inject({ method: 'GET', url: '/api/identity/me' });
@@ -38,7 +45,7 @@ describe('GET /api/identity/me', () => {
   });
 
   it('returns 401 with an invalid/unsigned cookie value', async () => {
-    const app = buildApp(testEnv);
+    const app = buildTestApp(async () => null);
     await app.ready();
 
     const response = await app.inject({
@@ -53,17 +60,13 @@ describe('GET /api/identity/me', () => {
   });
 
   it('returns 401 for an expired session', async () => {
-    const app = buildApp(testEnv);
+    // Mirrors IdentityRepository.findValidById's own contract: an expired
+    // session is treated as not found (null), not returned and checked for
+    // expiry elsewhere — see identity.repository.ts.
+    const app = buildTestApp(async () => null);
     await app.ready();
 
-    const user = await prisma.user.create({
-      data: { email: `${randomUUID()}@example.com`, passwordHash: 'x', name: 'Expired User' },
-    });
-    userId = user.id;
-    const session = await prisma.session.create({
-      data: { userId, expiresAt: new Date(Date.now() - 60_000) },
-    });
-    const signed = app.signCookie(session.id);
+    const signed = app.signCookie(randomUUID());
 
     const response = await app.inject({
       method: 'GET',
@@ -77,18 +80,20 @@ describe('GET /api/identity/me', () => {
   });
 
   it('returns 200 and the authenticated user (safe shape) with a valid session cookie', async () => {
-    const app = buildApp(testEnv);
+    const email = `${randomUUID()}@example.com`;
+    const userId = randomUUID();
+    const sessionId = randomUUID();
+    const session: SessionWithUserDto = {
+      id: sessionId,
+      userId,
+      expiresAt: new Date(Date.now() + 60_000),
+      createdAt: new Date(),
+      user: { id: userId, email, name: 'Jane Doe', role: 'USER' },
+    };
+    const app = buildTestApp(async (id) => (id === sessionId ? session : null));
     await app.ready();
 
-    const email = `${randomUUID()}@example.com`;
-    const user = await prisma.user.create({
-      data: { email, passwordHash: 'x', name: 'Jane Doe' },
-    });
-    userId = user.id;
-    const session = await prisma.session.create({
-      data: { userId, expiresAt: new Date(Date.now() + 60_000) },
-    });
-    const signed = app.signCookie(session.id);
+    const signed = app.signCookie(sessionId);
 
     const response = await app.inject({
       method: 'GET',

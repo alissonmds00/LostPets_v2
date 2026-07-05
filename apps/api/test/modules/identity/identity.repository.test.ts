@@ -1,34 +1,38 @@
+import type { PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mockDeep, mockReset, type DeepMockProxy } from 'vitest-mock-extended';
 import { prisma } from '../../../src/infra/db/prisma.js';
 import { IdentityRepository } from '../../../src/modules/identity/identity.repository.js';
 import { ConflictError } from '../../../src/infra/errors/app-error.js';
 
+vi.mock('../../../src/infra/db/prisma.js', () => ({
+  prisma: mockDeep<PrismaClient>(),
+}));
+
+const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
+
 describe('IdentityRepository', () => {
   const repository = new IdentityRepository();
-  let userId: string;
-  let userEmail: string;
+  const userId = randomUUID();
+  const userEmail = `${randomUUID()}@example.com`;
+  const createdAt = new Date();
 
-  beforeEach(async () => {
-    userEmail = `${randomUUID()}@example.com`;
-    const user = await prisma.user.create({
-      data: {
-        email: userEmail,
-        passwordHash: 'irrelevant-for-this-test',
-        name: 'Test User',
-      },
-    });
-    userId = user.id;
-  });
-
-  afterEach(async () => {
-    await prisma.session.deleteMany({ where: { userId } });
-    await prisma.user.deleteMany({ where: { id: userId } });
+  beforeEach(() => {
+    mockReset(prismaMock);
   });
 
   describe('createUser', () => {
     it('creates a user and returns the safe (no passwordHash) shape', async () => {
       const email = `${randomUUID()}@example.com`;
+      prismaMock.user.create.mockResolvedValue({
+        id: userId,
+        email,
+        name: 'New User',
+        role: 'USER',
+        createdAt,
+      } as never);
 
       const user = await repository.createUser({
         email,
@@ -40,32 +44,58 @@ describe('IdentityRepository', () => {
       expect(user.name).toBe('New User');
       expect(user.role).toBe('USER');
       expect(user).not.toHaveProperty('passwordHash');
-
-      await prisma.user.deleteMany({ where: { email } });
+      expect(prismaMock.user.create).toHaveBeenCalledWith({
+        data: { email, passwordHash: 'hashed-value', name: 'New User' },
+        select: { id: true, email: true, name: true, role: true, createdAt: true },
+      });
     });
 
     it('throws ConflictError when the email is already registered', async () => {
       const email = `${randomUUID()}@example.com`;
-      await repository.createUser({ email, passwordHash: 'hashed-value', name: 'First User' });
+      prismaMock.user.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
 
       await expect(
         repository.createUser({ email, passwordHash: 'other-hash', name: 'Second User' }),
       ).rejects.toThrow(ConflictError);
+    });
 
-      await prisma.user.deleteMany({ where: { email } });
+    it('propagates any other error from prisma.user.create as-is', async () => {
+      const email = `${randomUUID()}@example.com`;
+      const unexpectedError = new Error('connection lost');
+      prismaMock.user.create.mockRejectedValue(unexpectedError);
+
+      await expect(
+        repository.createUser({ email, passwordHash: 'hash', name: 'Someone' }),
+      ).rejects.toThrow(unexpectedError);
     });
   });
 
   describe('findByEmail', () => {
     it('returns the user when a user with that email exists', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: userId,
+        email: userEmail,
+        passwordHash: 'irrelevant-for-this-test',
+        name: 'Test User',
+        role: 'USER',
+      } as never);
+
       const found = await repository.findByEmail(userEmail);
 
       expect(found).not.toBeNull();
       expect(found?.id).toBe(userId);
       expect(found?.email).toBe(userEmail);
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({ where: { email: userEmail } });
     });
 
     it('returns null when no user with that email exists', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
       const found = await repository.findByEmail(`${randomUUID()}@example.com`);
 
       expect(found).toBeNull();
@@ -75,36 +105,60 @@ describe('IdentityRepository', () => {
   describe('create', () => {
     it('creates a session for the given user', async () => {
       const expiresAt = new Date(Date.now() + 60_000);
+      const sessionId = randomUUID();
+      prismaMock.session.create.mockResolvedValue({
+        id: sessionId,
+        userId,
+        expiresAt,
+        createdAt,
+        user: { id: userId, email: userEmail, name: 'Test User', role: 'USER' },
+      } as never);
 
       const session = await repository.create(userId, expiresAt);
 
       expect(session.userId).toBe(userId);
       expect(session.expiresAt).toEqual(expiresAt);
+      expect(prismaMock.session.create).toHaveBeenCalledWith({
+        data: { userId, expiresAt },
+        include: { user: true },
+      });
     });
   });
 
   describe('findValidById', () => {
     it('returns the session with its user when not expired', async () => {
       const expiresAt = new Date(Date.now() + 60_000);
-      const created = await repository.create(userId, expiresAt);
+      const sessionId = randomUUID();
+      prismaMock.session.findFirst.mockResolvedValue({
+        id: sessionId,
+        userId,
+        expiresAt,
+        createdAt,
+        user: { id: userId, email: userEmail, name: 'Test User', role: 'USER' },
+      } as never);
 
-      const found = await repository.findValidById(created.id);
+      const found = await repository.findValidById(sessionId);
 
       expect(found).not.toBeNull();
-      expect(found?.id).toBe(created.id);
+      expect(found?.id).toBe(sessionId);
       expect(found?.user.id).toBe(userId);
+      expect(prismaMock.session.findFirst).toHaveBeenCalledWith({
+        where: { id: sessionId, expiresAt: { gt: expect.any(Date) } },
+        include: { user: true },
+      });
     });
 
     it('returns null when the session is expired', async () => {
-      const expiresAt = new Date(Date.now() - 60_000);
-      const created = await repository.create(userId, expiresAt);
+      prismaMock.session.findFirst.mockResolvedValue(null);
 
-      const found = await repository.findValidById(created.id);
+      const found = await repository.findValidById(randomUUID());
 
       expect(found).toBeNull();
     });
 
     it('returns null when the session does not exist', async () => {
+      prismaMock.session.findFirst.mockResolvedValue(null);
+
       const found = await repository.findValidById(randomUUID());
 
       expect(found).toBeNull();
@@ -113,15 +167,17 @@ describe('IdentityRepository', () => {
 
   describe('deleteById', () => {
     it('deletes the session', async () => {
-      const created = await repository.create(userId, new Date(Date.now() + 60_000));
+      const sessionId = randomUUID();
+      prismaMock.session.deleteMany.mockResolvedValue({ count: 1 });
 
-      await repository.deleteById(created.id);
+      await repository.deleteById(sessionId);
 
-      const found = await repository.findValidById(created.id);
-      expect(found).toBeNull();
+      expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({ where: { id: sessionId } });
     });
 
     it('does not throw when the session does not exist', async () => {
+      prismaMock.session.deleteMany.mockResolvedValue({ count: 0 });
+
       await expect(repository.deleteById(randomUUID())).resolves.not.toThrow();
     });
   });
