@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildApp } from '../../src/app.js';
-import type { Env } from '../../src/infra/config/env.js';
-import type { IdentityRepository } from '../../src/modules/identity/identity.repository.js';
-import type { IdentityService } from '../../src/modules/identity/identity.service.js';
-import type { SessionWithUserDto } from '../../src/modules/identity/identity.dto.js';
+import { buildApp } from '../../../src/app.js';
+import type { Env } from '../../../src/infra/config/env.js';
+import type { IdentityRepository } from '../../../src/modules/identity/identity.repository.js';
+import type { IdentityService } from '../../../src/modules/identity/identity.service.js';
+import type { SessionWithUserDto } from '../../../src/modules/identity/identity.dto.js';
 
 const testEnv: Env = {
   NODE_ENV: 'test',

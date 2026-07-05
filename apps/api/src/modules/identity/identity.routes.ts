@@ -2,10 +2,10 @@ import { z } from 'zod';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { Env } from '../../infra/config/env.js';
-import { getMeUsecase } from '../../usecases/get-me.usecase.js';
-import { loginUsecase } from '../../usecases/login.usecase.js';
-import { logoutUsecase } from '../../usecases/logout.usecase.js';
-import { registerUserUsecase } from '../../usecases/register-user.usecase.js';
+import { getMeUsecase } from './get-me.usecase.js';
+import { loginUsecase } from './login.usecase.js';
+import { logoutUsecase } from './logout.usecase.js';
+import { registerUserUsecase } from './register-user.usecase.js';
 import {
   loginBodySchema,
   loginResponseSchema,

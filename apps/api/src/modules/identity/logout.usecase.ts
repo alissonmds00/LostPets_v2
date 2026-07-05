@@ -1,4 +1,4 @@
-import type { IdentityService } from '../modules/identity/identity.service.js';
+import type { IdentityService } from './identity.service.js';
 
 // Lives in usecases/ (outside modules/), per the usecase skill — every route
 // goes through a usecase, even a single-module flow like this one, matching
