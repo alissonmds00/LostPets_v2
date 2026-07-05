@@ -12,7 +12,7 @@ description: >
 
 # Usecase (application layer)
 
-## Decisão (registrada em 2026-07-03)
+## Decisão (registrada em 2026-07-03, revisada em 2026-07-05)
 
 - Camadas: `route → usecase → service → repository`. **Toda** rota chama um usecase — mesmo uma
   operação simples que só usa um service de um módulo — não existe atalho `route → service`.
@@ -24,9 +24,16 @@ description: >
   exclusivamente via usecase. Isso existe para o motivo que o usuário trouxe: evitar acoplamento
   service-a-service (um service mudar não deveria quebrar outro service só porque um chamava o
   outro direto).
-- Usecases moram em `apps/api/src/usecases/` — uma pasta própria, **fora** de `modules/`. Um
-  usecase não pertence a um módulo específico porque, por definição, ele pode orquestrar mais de
-  um; colocá-lo dentro de um módulo esconderia que aquele código cruza fronteira.
+- **Localização do arquivo (revisado em 2026-07-05):** o usecase mora dentro do módulo a quem
+  pertence, direto na pasta do módulo, junto dos outros arquivos (`.service.ts`, `.repository.ts`,
+  `.routes.ts`) — sem subpasta própria. Ex: `modules/identity/register-user.usecase.ts`,
+  `modules/pets/submit-pet-listing.usecase.ts`. Isso vale sempre que o usecase só orquestra o
+  service do próprio módulo (a maioria dos casos hoje).
+  - **Exceção — usecase compartilhado/cross-module:** quando o usecase de fato orquestra services
+    de **mais de um módulo** (ex: um futuro fluxo de denúncia usando `moderation` + `pets`), ele não
+    pertence a nenhum dos dois — fica em `apps/api/src/shared/usecases/<nome>.usecase.ts`. A pasta
+    em si é o sinal visual de que aquele código cruza fronteira de módulo; um usecase de módulo
+    único nunca fica lá.
 - Um usecase por operação/fluxo de negócio (ex: `create-pet.usecase.ts`, `report-listing.usecase.ts`),
   seguindo a mesma granularidade de responsabilidade única do conceito de Use Case em Clean
   Architecture.
@@ -37,25 +44,36 @@ description: >
   parâmetro, sourced de `app.<nomeDecorado>` por quem chama — a rota sempre tem `app` no escopo e é
   quem repassa a instância pro usecase.
 
-**Alternativas consideradas:** usecase como camada adicional *depois* do service (`route → service
-→ usecase → repository`) — rejeitado por criar duas camadas fazendo orquestração parecida, o que
-tende a aumentar indireção em vez de reduzir acoplamento, o oposto do objetivo; usecase só entrando
-quando a operação de fato cruza módulos (rota simples continuaria `route → service` direto) —
-rejeitado em favor de uma regra única e consistente, mesmo pagando o custo de um wrapper fino em
-operações que não orquestram nada; manter o service chamando o público de outro módulo em casos
-"simples e estáveis" — rejeitado, porque abriria exceção à regra que justamente elimina o
-acoplamento service-a-service.
+**Alternativas consideradas (2026-07-03):** usecase como camada adicional *depois* do service
+(`route → service → usecase → repository`) — rejeitado por criar duas camadas fazendo orquestração
+parecida, o que tende a aumentar indireção em vez de reduzir acoplamento, o oposto do objetivo;
+manter o service chamando o público de outro módulo em casos "simples e estáveis" — rejeitado,
+porque abriria exceção à regra que justamente elimina o acoplamento service-a-service.
+
+**Revisão de 2026-07-05:** a decisão original também colocava TODO usecase numa pasta única
+`apps/api/src/usecases/`, fora de `modules/`, mesmo os que só orquestram o próprio módulo — a
+alternativa "usecase só sai do módulo quando cruza fronteira" tinha sido considerada e rejeitada
+nessa data. O usuário pediu para reabrir isso: usecases de módulo único agora ficam dentro do
+módulo; só os que genuinamente cruzam módulo (a exceção, rara) ficam numa pasta compartilhada —
+`apps/api/src/shared/usecases/`, não mais `apps/api/src/usecases/`. Escopo confirmado como
+retroativo: os usecases de `identity` (register/login/logout/get-me) e de `pets`
+(submit-pet-listing) já mesclados foram movidos para dentro de seus módulos.
 
 **Verificado com base em:** o padrão de **Application Service / Orchestrator** por cima de
 **Domain Service** em DDD/Clean Architecture — a camada de aplicação orquestra múltiplos domain
 services para cumprir um fluxo de negócio completo, e handlers HTTP não devem orquestrar
 diretamente; orquestração pertence à camada de aplicação, não à camada de transporte nem à camada
-de domínio.
+de domínio. A localização dentro do módulo (revisão de 2026-07-05) segue o mesmo raciocínio de
+"vertical slice"/"module-per-feature" já aplicado ao resto do projeto (cada módulo agrupa tudo que
+só ele usa; só o que é genuinamente compartilhado sai para uma pasta à parte).
 
 ## Como aplicar
 
 Ao implementar uma rota nova:
-1. Crie (ou reutilize) o usecase da operação em `apps/api/src/usecases/<nome-da-operação>.usecase.ts`.
+1. Se o usecase orquestra só o service do próprio módulo: crie (ou reutilize) em
+   `apps/api/src/modules/<módulo>/<nome-da-operação>.usecase.ts`, junto dos outros arquivos do
+   módulo. Se orquestra services de mais de um módulo: crie em
+   `apps/api/src/shared/usecases/<nome-da-operação>.usecase.ts`.
 2. O usecase recebe o DTO de entrada (ver skill `dto`) e o(s) service(s) necessário(s) como
    parâmetro — nunca instanciando `new XService()` ele mesmo (ver skill `dependency-injection`) —,
    chama o(s) service(s) e devolve o resultado tipado como DTO.
