@@ -26,7 +26,8 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  sessions Session[]
+  sessions    Session[]
+  petListings PetListing[]
 
   @@map("users")
 }
@@ -43,7 +44,58 @@ model Session {
 }
 
 // ---------------------------------------------------------------------------
-// pets, messaging and moderation modules add their own models here as they're
-// built (phases 2-4 in PLAN.md). Each module's repository only ever queries
+// pets module (phase 2 — see PLAN.md)
+// ---------------------------------------------------------------------------
+
+enum PetListingType {
+  LOST
+  FOUND
+  DONATION
+}
+
+enum PetListingStatus {
+  ACTIVE
+  RESOLVED
+  CANCELLED
+}
+
+model PetListing {
+  id          String           @id @default(uuid())
+  type        PetListingType
+  title       String
+  description String
+  species     String
+  latitude    Float
+  longitude   Float
+  city        String
+  status      PetListingStatus @default(ACTIVE)
+  ownerId     String
+  owner       User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+
+  photos PetPhoto[]
+
+  @@index([ownerId])
+  @@map("pet_listings")
+}
+
+model PetPhoto {
+  id         String     @id @default(uuid())
+  listingId  String
+  listing    PetListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  storageKey String
+  url        String
+  order      Int
+  createdAt  DateTime   @default(now())
+
+  @@index([listingId])
+  @@map("pet_photos")
+}
+
+// ---------------------------------------------------------------------------
+// messaging and moderation modules add their own models here as they're
+// built (phases 3-4 in PLAN.md). Each module's repository only ever queries
 // the models it owns.
 // ---------------------------------------------------------------------------
