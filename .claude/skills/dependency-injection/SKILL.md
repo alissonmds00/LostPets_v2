@@ -12,17 +12,23 @@ description: >
 
 # Dependency Injection
 
-## Decisão (registrada em 2026-07-04)
+## Decisão (registrada em 2026-07-04, revisada em 2026-07-05)
 
-- Services e repositories são instanciados **exatamente uma vez**, em `apps/api/src/app.ts`, e
-  decorados na instância raiz do Fastify (`app.decorate('identityRepository', ...)`,
-  `app.decorate('identityService', ...)`) — **antes** de registrar qualquer plugin/módulo que
-  precise deles (`app.register(authPlugin, ...)`, `app.register(identityModule, ...)`, etc.).
+- Services e repositories são instanciados **exatamente uma vez**, decorados via
+  `app.decorate('identityRepository', ...)`/`app.decorate('identityService', ...)` — **antes** de
+  registrar qualquer plugin que precise deles.
+- **Onde a instanciação mora (revisado em 2026-07-05):** não mais centralizada em `app.ts` — cada
+  módulo instancia/decora seu próprio repository/service dentro do seu próprio
+  `<módulo>.module.ts` (ver skill `module`). `app.ts` virou o orquestrador: só registra o
+  `.module.ts` de cada módulo, sem `new X()` nenhum ali dentro.
 - Decorators adicionados diretamente na instância raiz (fora de um `.register()` aninhado) são
-  herdados automaticamente por todo contexto filho registrado depois — não precisa envolver isso
-  com `fastify-plugin` (`fp`). Isso é o oposto do caso do `authPlugin`: lá, `fp` é necessário porque
-  os decorators são adicionados **dentro** de um plugin e precisam subir para o escopo pai; aqui, os
-  decorators já nascem no escopo pai e descem naturalmente para os filhos.
+  herdados automaticamente por todo contexto filho registrado depois — não precisa de
+  `fastify-plugin` (`fp`) pra essa direção. Como a wiring agora acontece **dentro** de um
+  `.register()` (o próprio `.module.ts`), isso muda o cálculo: um decorator feito lá só é visível
+  para aquele módulo e seus filhos, não para plugins irmãos. Quando um decorator precisa ser visto
+  por fora (hoje só `identityRepository`, por causa de `requireAuth` em `infra/auth.ts`), o
+  `.module.ts` correspondente usa `fp` pra borbulhar o decorator pro escopo pai — mesma técnica que
+  `authPlugin` já usa pro motivo inverso. Ver skill `module` pra esse detalhe completo.
 - Repository e service são tipados via module augmentation do Fastify, mesma técnica já usada em
   `infra/auth.ts` para `requireAuth`/`requireRole`:
   ```typescript
@@ -49,10 +55,12 @@ resolvesse, contrariando o objetivo de aprender o próprio framework antes de so
 ## Como aplicar
 
 Ao ligar um service/repository novo na aplicação:
-1. Em `app.ts`, instancie o repository e o service (injetando o repository no construtor do
-   service) **uma vez**, antes de qualquer `app.register(...)` que dependa deles.
-2. Decore ambos na instância raiz: `app.decorate('<nome>Repository', instance)`,
-   `app.decorate('<nome>Service', instance)`.
+1. No `<módulo>.module.ts` do módulo dono (ver skill `module`), instancie o repository e o service
+   (injetando o repository no construtor do service) **uma vez**, antes de registrar as rotas do
+   próprio módulo.
+2. Decore ambos: `app.decorate('<nome>Repository', instance)`, `app.decorate('<nome>Service',
+   instance)` — envolva o `.module.ts` com `fastify-plugin` só se algum plugin irmão precisar
+   enxergar esse decorator (ver skill `module`).
 3. Adicione o `declare module 'fastify' { interface FastifyInstance { ... } }` correspondente no
    mesmo arquivo onde o decorate acontece (ou no arquivo do plugin, se o decorate morar lá — como em
    `infra/auth.ts`).

@@ -51,9 +51,22 @@ estrutural (union type), simples o bastante pra dois provedores sem precisar dec
 
 **Cuidado ao aplicar a exceção:** "ambiente diferente" não é sinônimo de "provedor diferente".
 LocalStack (dev) e o SQS real da AWS (prod) usam o mesmo SDK e protocolo (`@aws-sdk/client-sqs`) —
-só o endpoint muda via env (`SQS_ENDPOINT`, ausente em prod). Isso é o caso **default** (uma classe
-só, `PetsRegistrationQueueGatewayService`), não a exceção — diferente de `storage`, onde disco
-local e S3 são protocolos genuinamente diferentes (sistema de arquivos vs API HTTP).
+só o endpoint muda via env (`SQS_ENDPOINT`, ausente em prod). Tecnicamente isso seria o caso
+**default** (uma classe só), não a exceção — diferente de `storage`, onde disco local e S3 são
+protocolos genuinamente diferentes (sistema de arquivos vs API HTTP). Mesmo assim, o usuário pediu
+explicitamente pra aplicar a exceção aqui também (Strategy pattern) por consistência/aprendizado,
+mesmo sem a necessidade técnica estrita — ver "Reabertura de 2026-07-05" abaixo pro desvio de onde
+a escolha de estratégia mora.
+
+**Reabertura de 2026-07-05 — fila de pets vira exceção, com a escolha no service:** diferente de
+`storage` (onde a fábrica `createStorageGateway(env)` mora no PRÓPRIO arquivo de gateway, e o
+service só recebe o resultado já escolhido), aqui o usuário pediu que a decisão de qual estratégia
+usar (SQS real vs LocalStack) fique no **service** (`PetsService`), não numa fábrica dentro de
+`gateways/`. O service recebe as duas instâncias de gateway (ou uma referência a ambas) via
+construtor e decide, com base em `env`, qual `.enqueue(...)` chamar. Isso é uma exceção pontual à
+regra geral de "gateway concentra sua própria fábrica" — documentada aqui para não virar precedente
+silencioso para outros gateways com múltiplo provedor (ex: se `storage` for tocado de novo, a
+fábrica continua sendo a forma padrão, a menos que reaberto explicitamente de novo).
 
 **Verificado com base em:** o padrão de **Gateway** (Martin Fowler, Patterns of Enterprise
 Application Architecture) — um objeto que encapsula acesso a um sistema externo, contendo só a
@@ -80,12 +93,14 @@ acima. Hoje:
   forma, porque S3 genuinamente não serve esse caso (ver skill `exception-handler`: nunca force um
   método que lança "not supported" só pra imitar uma interface).
 
-`gateways/pets-registration-queue.gateway.service.ts` → `PetsRegistrationQueueGatewayService`
-(registrado em 2026-07-04): fila SQS pro cadastro de pet (evita perda de cadastro por sobrecarga
-do banco — rota enfileira e responde, um consumidor assíncrono persiste depois; desenho do
-consumidor adiado pra Fase 2, ver PLAN.md). Segue o **default** (classe única, sem interface) — não
-a exceção de `storage` — porque LocalStack e o SQS real são o mesmo protocolo, só o endpoint muda
-(ver "Cuidado ao aplicar a exceção" acima).
+Fila SQS pro cadastro de pet (registrada em 2026-07-04, revisada em 2026-07-05): evita perda de
+cadastro por sobrecarga do banco — rota enfileira e responde, um consumidor assíncrono (worker
+em background dentro do próprio `apps/api`, ver skill `infra-placement` e o poller/`sqs-consumer`
+em `pollers/`) persiste depois. Desde 2026-07-05, vira a exceção Strategy (ver "Reabertura de
+2026-07-05" acima): `gateways/sqs-queue.gateway.service.ts` (`SqsQueueGatewayService`) e
+`gateways/localstack-queue.gateway.service.ts` (`LocalStackQueueGatewayService`), ambas com a
+mesma forma (`enqueue`/`receiveMessages`/`deleteMessage`) — sem fábrica dentro de `gateways/`
+dessa vez, já que a escolha entre as duas mora no `PetsService`, não num arquivo de gateway.
 
 **Nota (registrada em 2026-07-04):** os nomes de classe acima (`StorageGatewayService`,
 `LocalStorageGatewayService`, `S3StorageGatewayService`, `PetsRegistrationQueueGatewayService`)
