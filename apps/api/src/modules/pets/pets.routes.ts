@@ -8,7 +8,10 @@ import type { RawPetPhotoUploadDto } from './pets.dto.js';
 // nome usado em submitPetListingBodySchema.
 const TEXT_FIELDS = ['type', 'title', 'description', 'species', 'latitude', 'longitude', 'city'] as const;
 
-export async function petsModule(
+// Named petsRoutes (not petsModule) to avoid colliding with the petsModule
+// export in pets.module.ts, which wires up repository/service/gateways and
+// registers this plugin under it — see the module skill.
+export async function petsRoutes(
   app: FastifyInstance,
   _opts: FastifyPluginOptions,
 ): Promise<void> {

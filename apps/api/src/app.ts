@@ -15,25 +15,12 @@ import { randomUUID } from 'node:crypto';
 import type { Env } from './infra/config/env.js';
 import { formatErrorResponse } from './infra/exception-handler.js';
 import { authPlugin } from './infra/auth.js';
-import { identityModule } from './modules/identity/identity.routes.js';
-import { IdentityRepository } from './modules/identity/identity.repository.js';
-import { IdentityService } from './modules/identity/identity.service.js';
-import { petsModule } from './modules/pets/pets.routes.js';
-import { PetsRepository } from './modules/pets/pets.repository.js';
-import { PetsService } from './modules/pets/pets.service.js';
-import { createStorageGateway } from './gateways/storage.gateway.service.js';
-import { PetsRegistrationQueueGatewayService } from './gateways/pets-registration-queue.gateway.service.js';
-
-// Module augmentation for the decorators added below — same technique used
-// in infra/auth.ts for requireAuth/requireRole.
-declare module 'fastify' {
-  interface FastifyInstance {
-    identityRepository: IdentityRepository;
-    identityService: IdentityService;
-    petsRepository: PetsRepository;
-    petsService: PetsService;
-  }
-}
+import { identityModule } from './modules/identity/identity.module.js';
+import type { IdentityRepository } from './modules/identity/identity.repository.js';
+import type { IdentityService } from './modules/identity/identity.service.js';
+import { petsModule } from './modules/pets/pets.module.js';
+import type { PetsRepository } from './modules/pets/pets.repository.js';
+import type { PetsService } from './modules/pets/pets.service.js';
 
 // Access log for every request (method/url/status/duration/request-id), on top
 // of Fastify's built-in "incoming request"/"request completed" hooks. Explicit
@@ -103,56 +90,50 @@ export function buildApp(
 
   app.get('/health', async () => ({ status: 'ok' }));
 
-  // Dependency injection via Fastify's native decorate mechanism (chosen over
-  // @fastify/awilix to avoid introducing a new container/cradle concept when
-  // decorate already solves the coupling problem — see the
-  // dependency-injection skill). Instantiated exactly once here and decorated
-  // onto the root instance, *before* registering any plugin/module that needs
-  // them: decorators added directly on the root instance (not inside a nested
-  // .register() call) are automatically inherited by every child context
-  // registered afterward, no fastify-plugin wrapping needed for this
-  // direction (unlike authPlugin below, whose decorators need to bubble *up*
-  // to the parent instead of down to children).
-  // requireAuth/requireRole (authPlugin below) always read
-  // app.identityRepository directly — even when a test overrides
-  // identityService only, the real repository is still built here so
-  // requireAuth keeps working for any route it guards in that test.
-  const identityRepository = overrides?.identityRepository ?? new IdentityRepository();
-  app.decorate('identityRepository', identityRepository);
-  app.decorate(
-    'identityService',
-    overrides?.identityService ?? new IdentityService(identityRepository, env.SESSION_TTL_DAYS),
-  );
-
-  // Same pattern as identity above: instantiated once here (storage/queue
-  // gateways included — only the service calls a gateway, see the gateway
-  // skill) and decorated onto the root instance before any module that
-  // depends on them is registered. Unlike identity's requireAuth (which
-  // always needs the real identityRepository even when identityService is
-  // mocked), nothing else in the app depends on the real petsRepository when
-  // petsService is overridden in a test, so this is simpler: each override
-  // only affects its own decorator.
-  const petsRepository = overrides?.petsRepository ?? new PetsRepository();
-  app.decorate('petsRepository', petsRepository);
-  app.decorate(
-    'petsService',
-    overrides?.petsService ??
-      new PetsService(petsRepository, createStorageGateway(env), new PetsRegistrationQueueGatewayService(env)),
-  );
+  // Each module owns its own repository/service/gateway wiring (dependency
+  // injection) *and* its own routes now — app.ts is just the orchestrator
+  // that mounts Fastify, registers truly global plugins (cors/cookie/rate
+  // limit/swagger/authPlugin), and registers each module's `.module.ts` (see
+  // the module skill). `overrides` still exists for tests (see the testing
+  // skill) — it's just forwarded to each module's registration options
+  // instead of being used directly here to `new X()`.
+  //
+  // Registration ORDER matters here, which it didn't before this module
+  // split: Fastify/avvio boots siblings registered on the same instance in
+  // series, each fully resolved before the next starts.
+  //   1. identityModule first: it decorates identityRepository (bubbled to
+  //      root via fp — see identity.module.ts) before anything else runs.
+  //   2. authPlugin next: its setup function reads app.identityRepository
+  //      exactly once, synchronously, when IT runs (not per-request) — see
+  //      infra/auth.ts — so identityRepository must already exist by then.
+  //      authPlugin itself is fp-wrapped so requireAuth/requireRole bubble
+  //      to root too, visible to every module registered afterward.
+  //   3. petsModule last: its routes reference app.requireAuth as a
+  //      preHandler, which needs authPlugin to already have decorated it.
+  // (identityModule's own /me route cannot rely on requireAuth existing yet
+  // when ITS routes are registered — step 1 runs before step 2 — so it
+  // reads app.requireAuth lazily inside a closure instead of eagerly; see
+  // identity.routes.ts.)
+  // `overrides` is forwarded as-is (not rebuilt field-by-field) — each
+  // module's own options type only declares the fields it cares about, and
+  // passing the same object through a variable (rather than a fresh object
+  // literal) is structurally fine even though it also carries the other
+  // module's fields. The `overrides ? { ...} : { ... }` split (rather than
+  // always including `overrides`) is needed because `overrides` itself is
+  // `X | undefined` here (buildApp's param is optional) — under
+  // `exactOptionalPropertyTypes`, an optional property must be *absent*
+  // when there's no value, not present-with-`undefined`.
+  app.register(identityModule, overrides ? { env, overrides } : { env });
 
   // Registered at root (not nested inside identityModule's own
-  // app.register(...) below) so requireAuth/requireRole are visible to every
+  // app.register(...) above) so requireAuth/requireRole are visible to every
   // module registered as a sibling here — pets/messaging/moderation routes
   // need them too, not just identity's own routes. See infra/auth.ts for the
   // Fastify-encapsulation reasoning and why this lives in infra/ rather than
   // modules/identity despite depending on IdentityRepository.
   app.register(authPlugin, { env });
 
-  // Each module owns its own routes/service/repository and only reaches into
-  // its own Prisma models. Cross-module calls go through another module's
-  // exported service, never straight into its tables.
-  app.register(identityModule, { prefix: '/api/identity', env });
-  app.register(petsModule, { prefix: '/api/pets' });
+  app.register(petsModule, overrides ? { env, overrides } : { env });
   // messaging and moderation modules are registered here as they're built —
   // see PLAN.md for build order and scope.
 

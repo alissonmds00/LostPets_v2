@@ -17,7 +17,12 @@ import {
 // Session infra (password hashing, session repository, requireAuth/requireRole
 // decorators — see auth.ts) is already built. register/login/logout/me are
 // all in place now, see PLAN.md phase 1.
-export async function identityModule(
+//
+// Named identityRoutes (not identityModule) to avoid colliding with the
+// identityModule export in identity.module.ts, which wires up
+// repository/service and registers this plugin under it — see the module
+// skill.
+export async function identityRoutes(
   app: FastifyInstance,
   opts: FastifyPluginOptions & { env: Env },
 ): Promise<void> {
@@ -124,7 +129,19 @@ export async function identityModule(
       // requireAuth already throws UnauthorizedError (401) itself when the
       // cookie is missing/invalid or the session doesn't exist/is expired —
       // this route doesn't re-check that, see the auth-middleware skill.
-      preHandler: app.requireAuth,
+      //
+      // Wrapped in a closure (not `app.requireAuth` directly, like /logout
+      // above) rather than read eagerly here: identityModule (which
+      // registers this plugin) now has to be registered before authPlugin
+      // in app.ts, so that authPlugin's own setup — which reads
+      // app.identityRepository once, synchronously, when IT runs — sees the
+      // real repository instead of undefined (see the module skill).  That
+      // means requireAuth isn't decorated yet at the point this route
+      // object is built, so referencing app.requireAuth directly here would
+      // capture undefined instead of the function. The closure defers the
+      // lookup to request time, after every plugin (including authPlugin)
+      // has finished booting.
+      preHandler: (request, reply) => app.requireAuth(request, reply),
       schema: {
         summary: 'Retorna o usuário autenticado',
         description:
