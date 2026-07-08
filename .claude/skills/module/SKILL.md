@@ -28,17 +28,26 @@ description: >
   sem instanciar nada de nenhum módulo específico ali dentro.
 - **A pegadinha de encapsulamento do Fastify:** `register()` cria um escopo próprio — um
   `app.decorate(...)` feito dentro do `.module.ts` só é visível para aquele módulo e seus filhos,
-  **não** para plugins irmãos (ver [Fastify Encapsulation](https://fastify.dev/docs/latest/Reference/Encapsulation/)).
-  Isso importa porque `infra/auth.ts` (`requireAuth`/`requireRole`) lê `app.identityRepository`
-  e é registrado como **irmão** de `identityModule`, não filho.
-  - Quando um decorator de um módulo precisa ser visto por um plugin irmão (hoje só
-    `identityRepository`, por causa de `requireAuth`), o `.module.ts` desse módulo usa
-    `fastify-plugin` (`fp(...)`) para "borbulhar" o decorator pra cima até o escopo pai — mesma
-    técnica que `authPlugin` já usa para o motivo inverso (seus próprios decorators precisam
-    alcançar os módulos registrados depois dele).
-  - Quando nenhum decorator do módulo precisa ser visto de fora (caso comum — ex: `petsRepository`/
-    `petsService` hoje, nada fora de `pets` depende deles), o `.module.ts` NÃO precisa de
-    `fastify-plugin` — o encapsulamento padrão já é suficiente e até desejável (menos vazamento).
+  **não** para plugins irmãos nem para o `app` de nível raiz devolvido por `buildApp()` (ver
+  [Fastify Encapsulation](https://fastify.dev/docs/latest/Reference/Encapsulation/)).
+  - **Corrigido em 2026-07-05 (implementação da PR #24):** a regra não é só "algum plugin irmão lê
+    esse decorator" — é "algum código fora do próprio `.register()` do módulo lê esse decorator",
+    o que inclui **código fora do Fastify inteiramente**. `server.ts` lê `app.petsService` a partir
+    da referência raiz devolvida por `buildApp()`, depois que ela já resolveu (`app.listen(...)`)
+    — isso é a mesma barreira de encapsulamento que o caso `identityRepository`/`authPlugin`, só
+    que o leitor é um script externo em vez de um plugin irmão registrado dentro do Fastify. Sem
+    `fastify-plugin`, `app.petsService` fica `undefined` nesse ponto (confirmado empiricamente na
+    PR #24) — a suíte de teste não pega isso porque nenhum teste toca a referência raiz depois de
+    `buildApp()` resolver, só `app.inject()` (que atravessa o roteamento normal, dentro do
+    encapsulamento).
+  - Por isso: `identity.module.ts` usa `fastify-plugin` (`identityRepository` lido por `authPlugin`,
+    plugin irmão) **e** `pets.module.ts` também usa (`petsService` lido por `server.ts` a partir da
+    raiz). Na prática, hoje **todo** `.module.ts` que decora algo lido fora do próprio módulo
+    precisa de `fp` — o caso "não precisa" é só quando um decorator é usado exclusivamente pelas
+    próprias rotas do módulo, nunca de fora (nem por outro plugin, nem por `server.ts`/scripts).
+  - Antes de decidir que um `.module.ts` novo não precisa de `fastify-plugin`, confira não só quem
+    mais no Fastify lê esse decorator, mas também se `server.ts` (ou qualquer outro entrypoint fora
+    do `app.ts`) precisa ler `app.<decorator>` depois que `buildApp()` retorna.
 - `overrides` de teste (ver skill `testing`) continuam existindo, só mudam de lugar: em vez de
   `buildApp(env, overrides)` repassar `overrides.identityService` etc. direto pro corpo de
   `app.ts`, cada `.module.ts` recebe o override correspondente como opção de registro (ex:
@@ -65,9 +74,11 @@ Ao criar um módulo novo (ou migrar a wiring de um módulo existente pra dentro 
    em `app.ts`, só movido pra cá.
 3. Registre as rotas do módulo (o plugin `<módulo>.routes.ts` já existente) dentro do próprio
    `.module.ts`, não em `app.ts`.
-4. Se algum decorator desse módulo precisa ser lido por um plugin irmão (confirme lendo quem já
-   lê `app.<algo>` fora do próprio módulo — hoje só `infra/auth.ts`), envolva o `.module.ts` com
-   `fastify-plugin`. Caso contrário, não envolva — deixe o encapsulamento padrão isolar o módulo.
+4. Confira se algum decorator desse módulo é lido fora do próprio `.register()` dele — por um
+   plugin irmão (ex: `infra/auth.ts`) OU por código fora do Fastify (ex: `server.ts` lendo
+   `app.<algo>` depois que `buildApp()` retorna). Se sim, envolva o `.module.ts` com
+   `fastify-plugin`. Só pule isso se tiver certeza de que ninguém, em lugar nenhum, precisa ler
+   aquele decorator fora das próprias rotas do módulo.
 5. Em `app.ts`, troque a instanciação manual por `app.register(<módulo>Module, { env, overrides })`.
 6. `declare module 'fastify' { interface FastifyInstance { ... } }` (module augmentation dos tipos
    dos decorators) pode continuar em `app.ts` (é só tipo, não wiring) ou mover pro próprio
