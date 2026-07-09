@@ -23,7 +23,9 @@ const testEnv: Env = {
 };
 
 async function makeJpegBuffer(): Promise<Buffer> {
-  return sharp({ create: { width: 20, height: 20, channels: 3, background: { r: 10, g: 20, b: 30 } } })
+  return sharp({
+    create: { width: 20, height: 20, channels: 3, background: { r: 10, g: 20, b: 30 } },
+  })
     .jpeg()
     .toBuffer();
 }
@@ -43,7 +45,7 @@ function buildMultipartPayload(fields: Record<string, string>, photoBuffer?: Buf
 // lookup — same pattern as auth.test.ts — plus a mocked petsService (this
 // route's own collaborator). Neither Postgres nor the storage/queue gateways
 // are touched (see the testing skill's 2026-07-04 revision).
-function buildTestApp(petsService: Pick<PetsService, 'submitListingForRegistration'>) {
+function buildTestApp(petsService: Partial<PetsService>) {
   const sessions = new Map<string, SessionWithUserDto>();
   const identityRepository: Pick<IdentityRepository, 'findValidById'> = {
     findValidById: vi.fn(async (sessionId: string) => sessions.get(sessionId) ?? null),
@@ -216,6 +218,251 @@ describe('POST /api/pets', () => {
     });
 
     expect(response.statusCode).toBe(422);
+
+    await app.close();
+  });
+});
+
+function makeListing(
+  overrides: Partial<import('../../../src/modules/pets/pets.dto.js').PetListingDto> = {},
+) {
+  const createdAt = new Date();
+  return {
+    id: randomUUID(),
+    type: 'LOST' as const,
+    title: 'Cachorro perdido',
+    description: 'Golden retriever, atende por Rex',
+    species: 'cachorro',
+    latitude: -23.55052,
+    longitude: -46.633308,
+    city: 'São Paulo',
+    status: 'ACTIVE' as const,
+    ownerId: randomUUID(),
+    createdAt,
+    updatedAt: createdAt,
+    photos: [],
+    ...overrides,
+  };
+}
+
+describe('GET /api/pets', () => {
+  it('returns 200 with the paginated list from the service, no auth required', async () => {
+    const listing = makeListing();
+    const petsService = {
+      listListings: vi
+        .fn()
+        .mockResolvedValue({ data: [listing], pagination: { total: 1, offset: 0, limit: 20 } }),
+    };
+    const { app } = buildTestApp(petsService);
+    await app.ready();
+
+    const response = await app.inject({ method: 'GET', url: '/api/pets' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().pagination).toEqual({ total: 1, offset: 0, limit: 20 });
+    expect(response.json().data).toHaveLength(1);
+    // Sem filtro explícito, status default ACTIVE e paginação default (0/20)
+    // chegam no service já resolvidos pelo Zod.
+    expect(petsService.listListings).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'ACTIVE', offset: 0, limit: 20 }),
+    );
+
+    await app.close();
+  });
+
+  it('returns 400 when only some of lat/lng/radiusKm are given', async () => {
+    const petsService = { listListings: vi.fn() };
+    const { app } = buildTestApp(petsService);
+    await app.ready();
+
+    const response = await app.inject({ method: 'GET', url: '/api/pets?lat=-23.5&lng=-46.6' });
+
+    expect(response.statusCode).toBe(400);
+    expect(petsService.listListings).not.toHaveBeenCalled();
+
+    await app.close();
+  });
+
+  it('passes lat/lng/radiusKm through when all three are given together', async () => {
+    const petsService = {
+      listListings: vi
+        .fn()
+        .mockResolvedValue({ data: [], pagination: { total: 0, offset: 0, limit: 20 } }),
+    };
+    const { app } = buildTestApp(petsService);
+    await app.ready();
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/pets?lat=-23.5&lng=-46.6&radiusKm=10',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(petsService.listListings).toHaveBeenCalledWith(
+      expect.objectContaining({ lat: -23.5, lng: -46.6, radiusKm: 10 }),
+    );
+
+    await app.close();
+  });
+});
+
+describe('GET /api/pets/:id', () => {
+  it('returns 200 with the listing, no auth required', async () => {
+    const listing = makeListing();
+    const petsService = { getListing: vi.fn().mockResolvedValue(listing) };
+    const { app } = buildTestApp(petsService);
+    await app.ready();
+
+    const response = await app.inject({ method: 'GET', url: `/api/pets/${listing.id}` });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().id).toBe(listing.id);
+    expect(petsService.getListing).toHaveBeenCalledWith(listing.id);
+
+    await app.close();
+  });
+
+  it('returns 404 when the service throws NotFoundError', async () => {
+    const { NotFoundError } = await import('../../../src/infra/errors/app-error.js');
+    const petsService = { getListing: vi.fn().mockRejectedValue(new NotFoundError('Anúncio')) };
+    const { app } = buildTestApp(petsService);
+    await app.ready();
+
+    const response = await app.inject({ method: 'GET', url: `/api/pets/${randomUUID()}` });
+
+    expect(response.statusCode).toBe(404);
+
+    await app.close();
+  });
+});
+
+describe('PATCH /api/pets/:id', () => {
+  it('returns 401 without an authenticated session', async () => {
+    const petsService = { updateListing: vi.fn() };
+    const { app } = buildTestApp(petsService);
+    await app.ready();
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/pets/${randomUUID()}`,
+      payload: { title: 'Novo título' },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(petsService.updateListing).not.toHaveBeenCalled();
+
+    await app.close();
+  });
+
+  it('returns 200 and forwards requesterId/requesterRole from the session, never from the body', async () => {
+    const listing = makeListing();
+    const petsService = {
+      updateListing: vi.fn().mockResolvedValue({ ...listing, title: 'Novo título' }),
+    };
+    const { app, seedValidSession } = buildTestApp(petsService);
+    await app.ready();
+
+    const userId = randomUUID();
+    const { sessionId } = seedValidSession(userId);
+    const signed = app.signCookie(sessionId);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/pets/${listing.id}`,
+      payload: { title: 'Novo título' },
+      headers: { cookie: `${testEnv.SESSION_COOKIE_NAME}=${signed}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().title).toBe('Novo título');
+    expect(petsService.updateListing).toHaveBeenCalledWith({
+      id: listing.id,
+      requesterId: userId,
+      requesterRole: 'USER',
+      title: 'Novo título',
+    });
+
+    await app.close();
+  });
+
+  it('returns 403 when the service throws ForbiddenError', async () => {
+    const { ForbiddenError } = await import('../../../src/infra/errors/app-error.js');
+    const petsService = { updateListing: vi.fn().mockRejectedValue(new ForbiddenError()) };
+    const { app, seedValidSession } = buildTestApp(petsService);
+    await app.ready();
+
+    const { sessionId } = seedValidSession(randomUUID());
+    const signed = app.signCookie(sessionId);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/pets/${randomUUID()}`,
+      payload: { title: 'x' },
+      headers: { cookie: `${testEnv.SESSION_COOKIE_NAME}=${signed}` },
+    });
+
+    expect(response.statusCode).toBe(403);
+
+    await app.close();
+  });
+});
+
+describe('DELETE /api/pets/:id', () => {
+  it('returns 401 without an authenticated session', async () => {
+    const petsService = { deleteListing: vi.fn() };
+    const { app } = buildTestApp(petsService);
+    await app.ready();
+
+    const response = await app.inject({ method: 'DELETE', url: `/api/pets/${randomUUID()}` });
+
+    expect(response.statusCode).toBe(401);
+    expect(petsService.deleteListing).not.toHaveBeenCalled();
+
+    await app.close();
+  });
+
+  it('returns 204 and forwards requesterId/requesterRole from the session', async () => {
+    const listingId = randomUUID();
+    const petsService = { deleteListing: vi.fn().mockResolvedValue(undefined) };
+    const { app, seedValidSession } = buildTestApp(petsService);
+    await app.ready();
+
+    const userId = randomUUID();
+    const { sessionId } = seedValidSession(userId);
+    const signed = app.signCookie(sessionId);
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: `/api/pets/${listingId}`,
+      headers: { cookie: `${testEnv.SESSION_COOKIE_NAME}=${signed}` },
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(petsService.deleteListing).toHaveBeenCalledWith({
+      id: listingId,
+      requesterId: userId,
+      requesterRole: 'USER',
+    });
+
+    await app.close();
+  });
+
+  it('returns 403 when the service throws ForbiddenError (not the owner, not an admin)', async () => {
+    const { ForbiddenError } = await import('../../../src/infra/errors/app-error.js');
+    const petsService = { deleteListing: vi.fn().mockRejectedValue(new ForbiddenError()) };
+    const { app, seedValidSession } = buildTestApp(petsService);
+    await app.ready();
+
+    const { sessionId } = seedValidSession(randomUUID());
+    const signed = app.signCookie(sessionId);
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: `/api/pets/${randomUUID()}`,
+      headers: { cookie: `${testEnv.SESSION_COOKIE_NAME}=${signed}` },
+    });
+
+    expect(response.statusCode).toBe(403);
 
     await app.close();
   });
