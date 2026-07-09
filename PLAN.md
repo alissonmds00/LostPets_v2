@@ -45,11 +45,11 @@ Roteiro para retomar a implementação em uma sessão futura. Ver [ARCHITECTURE.
 
 ## Fase 4 — `moderation`
 
-- [ ] Modelar `Report` (`reporterId`, `listingId`, `reason`, `status` `PENDING | REVIEWED | DISMISSED`, `createdAt`)
-- [ ] `POST /api/moderation/reports` — usuário autenticado denuncia um anúncio
-- [ ] `GET /api/moderation/reports` — fila de revisão, só admin (`requireRole('ADMIN')`)
-- [ ] `POST /api/moderation/reports/:id/resolve` — admin marca como revisado e opcionalmente remove o anúncio (chama o usecase que orquestra `moderation` e `pets`, nunca o service ou a tabela de outro módulo direto)
-- [ ] Testes: acesso negado para não-admin, fluxo completo de denúncia → revisão → remoção
+- [x] Modelar `Report` (`reporterId`, `listingId`, `reason`, `status` `PENDING | REVIEWED | DISMISSED`, `createdAt`); múltiplas denúncias do mesmo usuário pro mesmo anúncio são permitidas (sem unique constraint)
+- [x] `POST /api/moderation/reports` — usuário autenticado denuncia um anúncio
+- [x] `GET /api/moderation/reports` — fila de revisão, só admin (`requireRole('ADMIN')`); lista só `PENDING`, sem filtro de status por enquanto
+- [x] `POST /api/moderation/reports/:id/resolve` — admin resolve com um `outcome` único (`DISMISSED | REVIEWED_KEPT | REVIEWED_REMOVED`, decidido com o usuário em 2026-07-09 em vez de dois campos separados); `REVIEWED_REMOVED` reusa o `DELETE /api/pets/:id` já existente (`PetsService.deleteListing`) via `shared/usecases/resolve-report.usecase.ts`, que orquestra `moderation` e `pets` — nunca o service ou a tabela de outro módulo direto; resolver uma denúncia já resolvida retorna 409 — ver skill `moderation`
+- [x] Testes: acesso negado para não-admin, fluxo completo de denúncia → revisão → remoção (unit em cada camada + verificação manual do fluxo completo via HTTP real contra Postgres real, confirmando o soft-delete do anúncio)
 
 ## Backlog (fora de ordem, quando fizer sentido)
 

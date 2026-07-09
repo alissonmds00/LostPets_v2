@@ -28,6 +28,7 @@ model User {
 
   sessions    Session[]
   petListings PetListing[]
+  reports     Report[]
 
   @@map("users")
 }
@@ -75,7 +76,8 @@ model PetListing {
   updatedAt   DateTime         @updatedAt
   deletedAt   DateTime?
 
-  photos PetPhoto[]
+  photos  PetPhoto[]
+  reports Report[]
 
   @@index([ownerId])
   @@map("pet_listings")
@@ -95,7 +97,31 @@ model PetPhoto {
 }
 
 // ---------------------------------------------------------------------------
-// messaging and moderation modules add their own models here as they're
-// built (phases 3-4 in PLAN.md). Each module's repository only ever queries
-// the models it owns.
+// messaging module adds its own models here as it's built (phase 3 — see
+// PLAN.md). Each module's repository only ever queries the models it owns.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// moderation module (phase 4 — see PLAN.md)
+// ---------------------------------------------------------------------------
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+}
+
+model Report {
+  id         String       @id @default(uuid())
+  reporterId String
+  reporter   User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  listingId  String
+  listing    PetListing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reason     String
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+
+  @@index([reporterId])
+  @@index([listingId])
+  @@map("reports")
+}

@@ -21,6 +21,9 @@ import { IdentityService } from './modules/identity/identity.service.js';
 import { petsModule } from './modules/pets/pets.routes.js';
 import { PetsRepository } from './modules/pets/pets.repository.js';
 import { PetsService } from './modules/pets/pets.service.js';
+import { moderationModule } from './modules/moderation/moderation.routes.js';
+import { ModerationRepository } from './modules/moderation/moderation.repository.js';
+import { ModerationService } from './modules/moderation/moderation.service.js';
 import { createStorageGateway } from './gateways/storage.gateway.service.js';
 import { PetsRegistrationQueueGatewayService } from './gateways/pets-registration-queue.gateway.service.js';
 
@@ -32,6 +35,8 @@ declare module 'fastify' {
     identityService: IdentityService;
     petsRepository: PetsRepository;
     petsService: PetsService;
+    moderationRepository: ModerationRepository;
+    moderationService: ModerationService;
   }
 }
 
@@ -59,6 +64,8 @@ export function buildApp(
     identityRepository?: IdentityRepository;
     petsService?: PetsService;
     petsRepository?: PetsRepository;
+    moderationService?: ModerationService;
+    moderationRepository?: ModerationRepository;
   },
 ) {
   const app = Fastify({
@@ -137,7 +144,19 @@ export function buildApp(
   app.decorate(
     'petsService',
     overrides?.petsService ??
-      new PetsService(petsRepository, createStorageGateway(env), new PetsRegistrationQueueGatewayService(env)),
+      new PetsService(
+        petsRepository,
+        createStorageGateway(env),
+        new PetsRegistrationQueueGatewayService(env),
+      ),
+  );
+
+  // Mesmo padrão acima.
+  const moderationRepository = overrides?.moderationRepository ?? new ModerationRepository();
+  app.decorate('moderationRepository', moderationRepository);
+  app.decorate(
+    'moderationService',
+    overrides?.moderationService ?? new ModerationService(moderationRepository),
   );
 
   // Registered at root (not nested inside identityModule's own
@@ -153,8 +172,8 @@ export function buildApp(
   // exported service, never straight into its tables.
   app.register(identityModule, { prefix: '/api/identity', env });
   app.register(petsModule, { prefix: '/api/pets' });
-  // messaging and moderation modules are registered here as they're built —
-  // see PLAN.md for build order and scope.
+  app.register(moderationModule, { prefix: '/api/moderation' });
+  // messaging module is registered here as it's built — see PLAN.md.
 
   return app;
 }
