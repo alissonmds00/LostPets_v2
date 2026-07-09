@@ -2,31 +2,38 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Env } from '../../src/infra/config/env.js';
 
 // Gateway test (see the testing/gateway skills): no automated test touches a
-// real external system (LocalStack included) — the AWS SDK client itself is
-// mocked, so this only verifies the gateway translates correctly between the
-// domain shape and the SQS SDK calls.
+// real external system (LocalStack included) — both the AWS SDK client and
+// sqs-consumer are mocked, so this only verifies the gateway translates
+// correctly between the domain shape and the SQS SDK/sqs-consumer calls.
 const sendMock = vi.fn();
+const startMock = vi.fn();
+const stopMock = vi.fn();
+const onMock = vi.fn();
+const createMock = vi.fn();
 
 vi.mock('@aws-sdk/client-sqs', () => {
   class SQSClient {
     send = sendMock;
   }
-  class ReceiveMessageCommand {
-    constructor(public input: unknown) {}
-  }
-  class DeleteMessageCommand {
-    constructor(public input: unknown) {}
-  }
   class SendMessageCommand {
     constructor(public input: unknown) {}
   }
-  return { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, SendMessageCommand };
+  return { SQSClient, SendMessageCommand };
 });
+
+vi.mock('sqs-consumer', () => ({
+  Consumer: {
+    create: (options: unknown) => {
+      createMock(options);
+      return { on: onMock, start: startMock, stop: stopMock };
+    },
+  },
+}));
 
 const { PetsRegistrationQueueGatewayService } = await import(
   '../../src/gateways/pets-registration-queue.gateway.service.js'
 );
-const { ReceiveMessageCommand, DeleteMessageCommand } = await import('@aws-sdk/client-sqs');
+const { SendMessageCommand } = await import('@aws-sdk/client-sqs');
 
 const testEnv: Env = {
   NODE_ENV: 'test',
@@ -45,61 +52,69 @@ const testEnv: Env = {
 describe('PetsRegistrationQueueGatewayService', () => {
   beforeEach(() => {
     sendMock.mockReset();
+    startMock.mockReset();
+    stopMock.mockReset();
+    onMock.mockReset();
+    createMock.mockReset();
   });
 
-  describe('receiveMessages', () => {
-    it('translates SQS messages into { receiptHandle, body } using long polling', async () => {
-      sendMock.mockResolvedValue({
-        Messages: [
-          { ReceiptHandle: 'rh-1', Body: '{"foo":"bar"}' },
-          { ReceiptHandle: 'rh-2', Body: '{"baz":"qux"}' },
-        ],
-      });
-
-      const gateway = new PetsRegistrationQueueGatewayService(testEnv);
-      const messages = await gateway.receiveMessages();
-
-      expect(messages).toEqual([
-        { receiptHandle: 'rh-1', body: '{"foo":"bar"}' },
-        { receiptHandle: 'rh-2', body: '{"baz":"qux"}' },
-      ]);
-
-      expect(sendMock).toHaveBeenCalledTimes(1);
-      const command = sendMock.mock.calls[0][0];
-      expect(command).toBeInstanceOf(ReceiveMessageCommand);
-      expect(command.input).toEqual(
-        expect.objectContaining({
-          QueueUrl: testEnv.SQS_QUEUE_URL,
-          MaxNumberOfMessages: expect.any(Number),
-          WaitTimeSeconds: expect.any(Number),
-        }),
-      );
-    });
-
-    it('returns an empty array when SQS returns no messages', async () => {
+  describe('enqueue', () => {
+    it('sends the message body to the configured queue', async () => {
       sendMock.mockResolvedValue({});
 
       const gateway = new PetsRegistrationQueueGatewayService(testEnv);
-      const messages = await gateway.receiveMessages();
-
-      expect(messages).toEqual([]);
-    });
-  });
-
-  describe('deleteMessage', () => {
-    it('deletes a message by receipt handle', async () => {
-      sendMock.mockResolvedValue({});
-
-      const gateway = new PetsRegistrationQueueGatewayService(testEnv);
-      await gateway.deleteMessage('rh-1');
+      await gateway.enqueue('{"foo":"bar"}');
 
       expect(sendMock).toHaveBeenCalledTimes(1);
       const command = sendMock.mock.calls[0][0];
-      expect(command).toBeInstanceOf(DeleteMessageCommand);
+      expect(command).toBeInstanceOf(SendMessageCommand);
       expect(command.input).toEqual({
         QueueUrl: testEnv.SQS_QUEUE_URL,
-        ReceiptHandle: 'rh-1',
+        MessageBody: '{"foo":"bar"}',
       });
+    });
+  });
+
+  describe('startConsuming', () => {
+    it('creates a sqs-consumer bound to the configured queue/client and starts it', () => {
+      const gateway = new PetsRegistrationQueueGatewayService(testEnv);
+      gateway.startConsuming(vi.fn(), vi.fn());
+
+      expect(createMock).toHaveBeenCalledTimes(1);
+      const options = createMock.mock.calls[0][0] as { queueUrl: string; sqs: unknown };
+      expect(options.queueUrl).toBe(testEnv.SQS_QUEUE_URL);
+      expect(startMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('invokes handleMessage with the raw SQS message body', async () => {
+      const handleMessage = vi.fn().mockResolvedValue(undefined);
+      const gateway = new PetsRegistrationQueueGatewayService(testEnv);
+      gateway.startConsuming(handleMessage, vi.fn());
+
+      const options = createMock.mock.calls[0][0] as {
+        handleMessage: (message: { Body?: string }) => Promise<void>;
+      };
+      await options.handleMessage({ Body: '{"foo":"bar"}' });
+
+      expect(handleMessage).toHaveBeenCalledWith('{"foo":"bar"}');
+    });
+
+    it('wires the sqs-consumer error event to onError', () => {
+      const onError = vi.fn();
+      const gateway = new PetsRegistrationQueueGatewayService(testEnv);
+      gateway.startConsuming(vi.fn(), onError);
+
+      expect(onMock).toHaveBeenCalledWith('error', onError);
+    });
+  });
+
+  describe('stopConsuming', () => {
+    it('stops the underlying sqs-consumer', () => {
+      const gateway = new PetsRegistrationQueueGatewayService(testEnv);
+      gateway.startConsuming(vi.fn(), vi.fn());
+      gateway.stopConsuming();
+
+      expect(stopMock).toHaveBeenCalledTimes(1);
     });
   });
 });

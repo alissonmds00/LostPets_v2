@@ -81,11 +81,14 @@ acima. Hoje:
   método que lança "not supported" só pra imitar uma interface).
 
 `gateways/pets-registration-queue.gateway.service.ts` → `PetsRegistrationQueueGatewayService`
-(registrado em 2026-07-04): fila SQS pro cadastro de pet (evita perda de cadastro por sobrecarga
-do banco — rota enfileira e responde, um consumidor assíncrono persiste depois; desenho do
-consumidor adiado pra Fase 2, ver PLAN.md). Segue o **default** (classe única, sem interface) — não
-a exceção de `storage` — porque LocalStack e o SQS real são o mesmo protocolo, só o endpoint muda
-(ver "Cuidado ao aplicar a exceção" acima).
+(registrado em 2026-07-04, consumidor reaberto e detalhado em 2026-07-09 — ver skill `queue`): fila
+SQS pro cadastro de pet (evita perda de cadastro por sobrecarga do banco — rota enfileira e
+responde, um consumidor assíncrono persiste depois). Segue o **default** (classe única, sem
+interface) — não a exceção de `storage` — porque LocalStack e o SQS real são o mesmo protocolo, só
+o endpoint muda (ver "Cuidado ao aplicar a exceção" acima). Além de `enqueue`, o gateway expõe
+`startConsuming(handleMessage, onError)`/`stopConsuming()` pro lado consumidor, envolvendo a lib
+`sqs-consumer` por dentro — nunca expõe o `SQSClient` cru nem uma instância de `Consumer` da lib
+pra fora do gateway (ver skill `queue` pra convenção completa de produtor/consumidor de fila).
 
 **Nota (registrada em 2026-07-04):** os nomes de classe acima (`StorageGatewayService`,
 `LocalStorageGatewayService`, `S3StorageGatewayService`, `PetsRegistrationQueueGatewayService`)
