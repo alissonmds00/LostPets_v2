@@ -15,7 +15,7 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
 | Validação | Zod (`fastify-type-provider-zod`) | schemas viram tipos TS automaticamente |
 | Autenticação | Cookie de sessão httpOnly (`@fastify/cookie`), tabela `sessions` no Postgres, hash de senha com `argon2` | mais seguro contra XSS que JWT em localStorage; sem lógica de refresh token no frontend |
 | Autorização | Campo `role` no usuário (`USER` / `ADMIN`) | suficiente para moderação, sem RBAC complexo |
-| Mensagens diretas | WebSocket via `@fastify/websocket`, atrelada a um anúncio | usuário optou por tempo real; sem etapa de aprovação prévia (avaliado e recusado conscientemente) |
+| Mensagens diretas | WebSocket via `@fastify/websocket`, atrelada a um anúncio; só quem é dono do anúncio ou já está numa conversa com ele pode enviar (checagem cross-module `pets`+`messaging` em `shared/usecases/send-message.usecase.ts`); registro de quem está conectado é um singleton module-local (`MessagingConnectionRegistry`, fora do padrão de DI do resto do projeto); `readAt` é delivery receipt, não "usuário leu" | usuário optou por tempo real; sem etapa de aprovação prévia (avaliado e recusado conscientemente) — ver skill `messaging` |
 | Fotos | Gateway `createStorageGateway` (`gateways/storage.gateway.service.ts`), escolhe `LocalStorageGateway` (dev) vs `S3StorageGateway` (prod via `@aws-sdk/client-s3`) por `STORAGE_DRIVER` | mantém a app "pronta para AWS" sem acoplar no S3 agora |
 | Cadastro de pet | Fila SQS via `PetsRegistrationQueueGatewayService` (`gateways/pets-registration-queue.gateway.service.ts`) — LocalStack (dev, `SQS_ENDPOINT`) e SQS real (prod) são o mesmo protocolo, só muda o endpoint, então é uma classe única (não a exceção usada em storage); consumidor usa a lib `sqs-consumer` por dentro do gateway (`startConsuming`/`stopConsuming`), sem expor o `SQSClient` cru | evita perder o cadastro se o banco estiver sobrecarregado: a rota enfileira e responde, um consumidor assíncrono (`modules/pets/pets-registration.consumer.ts`, dentro do módulo por conter parsing/validação específica de `pets`) persiste depois via `PetsService.registerListing` — ver skill `queue` |
 | Upload de foto | Validação de tipo/tamanho + geração de thumbnail (`sharp`) | decisão consciente de aceitar a complexidade extra |
@@ -40,9 +40,8 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
 
 **Regra dura:** cada módulo só acessa suas próprias tabelas via seu próprio repositório. Um
 service **nunca** chama o service de outro módulo — comunicação entre módulos acontece
-exclusivamente na camada de usecase (`apps/api/src/usecases/`, ver "Convenções" abaixo), que
-orquestra os services dos módulos envolvidos. Isso é o que torna isso um monolito de fato
-*modular*, não apenas pastas por feature.
+exclusivamente na camada de usecase, que orquestra os services dos módulos envolvidos. Isso é o
+que torna isso um monolito de fato *modular*, não apenas pastas por feature.
 
 **Ordem de implementação** (pela cadeia real de dependência, não uma fase arbitrária): `identity` → `pets` (+ storage) → `messaging` → `moderation`. Ver [PLAN.md](PLAN.md) para o detalhamento executável dessa ordem.
 
@@ -50,10 +49,12 @@ orquestra os services dos módulos envolvidos. Isso é o que torna isso um monol
 
 - Erro de API padronizado: `{ error: { code, message, details? } }` ([infra/errors](apps/api/src/infra/errors)).
 - Camadas: `route → usecase → service → repository`. Toda rota chama um usecase, nunca o service
-  diretamente; usecases moram em `apps/api/src/usecases/` (fora de `modules/`, pois orquestram
-  services de módulos diferentes); cada service só chama o repository do próprio módulo;
-  repositório é o único ponto que fala com o Prisma. Ver skills `controller` e `usecase` em
-  `.claude/skills/` para o detalhe de cada camada.
+  diretamente; usecase que orquestra só o próprio módulo mora dentro dele
+  (`modules/<módulo>/<operação>.usecase.ts`); usecase que cruza mais de um módulo mora em
+  `apps/api/src/shared/usecases/<operação>.usecase.ts` (ex:
+  `shared/usecases/send-message.usecase.ts`, que cruza `pets` + `messaging`); cada service só chama
+  o repository do próprio módulo; repositório é o único ponto que fala com o Prisma. Ver skills
+  `controller` e `usecase` em `.claude/skills/` para o detalhe de cada camada.
 - CORS com `credentials: true` e origem explícita (não `*`), obrigatório por causa da autenticação via cookie.
 - Env vars validadas com Zod na subida da app (`infra/config/env.ts`) — falha rápido e claro em vez de erro tardio em runtime.
 - `/health` sem tocar no banco, para health check de orquestração (Docker/ECS).
