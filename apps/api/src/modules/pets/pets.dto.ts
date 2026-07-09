@@ -2,6 +2,10 @@ import type { z } from 'zod';
 import type {
   createPetListingInputSchema,
   createPetListingSchema,
+  deletePetListingInputSchema,
+  getPetParamsSchema,
+  listPetsQuerySchema,
+  petListingListResponseSchema,
   petListingSchema,
   petPhotoInputSchema,
   petPhotoSchema,
@@ -9,6 +13,8 @@ import type {
   submitListingForRegistrationInputSchema,
   submitPetListingBodySchema,
   submitPetListingResponseSchema,
+  updatePetBodySchema,
+  updatePetListingInputSchema,
 } from './pets.schema.js';
 
 // Dado vindo do usecase de criação de anúncio, sem as fotos já processadas
@@ -45,3 +51,23 @@ export type SubmitPetListingBodyDto = z.infer<typeof submitPetListingBodySchema>
 // Resposta do POST /api/pets — a submissão foi aceita e publicada na fila,
 // não há um PetListingDto completo ainda (desenho enqueue-then-persist).
 export type SubmitPetListingResponseDto = z.infer<typeof submitPetListingResponseSchema>;
+
+// Query já validada/coagida de GET /api/pets — o repository recebe exatamente
+// esse shape como filtro (sem uma camada de conversão extra, ver skill dto).
+export type ListPetsQueryDto = z.infer<typeof listPetsQuerySchema>;
+
+// Resposta paginada de GET /api/pets.
+export type PetListingListDto = z.infer<typeof petListingListResponseSchema>;
+
+// Params de GET/PATCH/DELETE /api/pets/:id.
+export type GetPetParamsDto = z.infer<typeof getPetParamsSchema>;
+
+// Body de PATCH /api/pets/:id, antes de anexar quem está pedindo a alteração.
+export type UpdatePetBodyDto = z.infer<typeof updatePetBodySchema>;
+
+// Input completo de PetsService.updateListing — body + id do anúncio + quem
+// está pedindo (pra checar posse).
+export type UpdatePetListingInputDto = z.infer<typeof updatePetListingInputSchema>;
+
+// Input completo de PetsService.deleteListing.
+export type DeletePetListingInputDto = z.infer<typeof deletePetListingInputSchema>;

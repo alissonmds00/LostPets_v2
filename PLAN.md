@@ -30,10 +30,10 @@ Roteiro para retomar a implementação em uma sessão futura. Ver [ARCHITECTURE.
 - [ ] Modelar no `schema.prisma`: `PetListing` (tipo `LOST | FOUND | DONATION`, título, descrição, espécie, lat/lng, cidade, `status` `ACTIVE | RESOLVED | CANCELLED`, `ownerId`, `deletedAt`), `PetPhoto` (chave de storage, url, ordem, `listingId`)
 - [ ] `POST /api/pets` — cria anúncio (autenticado), aceita upload via `@fastify/multipart`, valida tipo/tamanho, gera thumbnail com `sharp`, salva via `StorageGateway`; o registro em si é assíncrono — o usecase valida e publica na fila via `PetsRegistrationQueueGateway` (`enqueue-then-persist`, decidido em 2026-07-04 pra não perder cadastro se o banco estiver sobrecarregado), a rota responde 202, e um consumidor separado persiste no Postgres depois
 - [x] Consumidor da fila: `modules/pets/pets-registration.consumer.ts`, rodando dentro do próprio `apps/api` (sem `apps/worker` separado), usando `sqs-consumer` por dentro do gateway (`PetsRegistrationQueueGatewayService.startConsuming`/`stopConsuming`, decisão reaberta em 2026-07-09 — ver skill `queue`); consumidor chama `PetsService.registerListing` pra persistir, nunca grava direto na tabela
-- [ ] `GET /api/pets` — lista paginada (offset/limit), filtros por tipo, espécie, cidade, e busca por raio (lat/lng + fórmula de distância em SQL raw via Prisma `$queryRaw`)
-- [ ] `GET /api/pets/:id`, `PATCH /api/pets/:id` (só o dono), `DELETE /api/pets/:id` (soft delete, só o dono ou admin)
-- [ ] Ao soft-deletar, decidir e implementar o que acontece com as fotos no storage (manter ou remover — hoje em aberto)
-- [ ] Testes: unit da fórmula de distância, integração do CRUD e da paginação/filtros
+- [x] `GET /api/pets` — lista paginada (offset/limit, default 20, máximo 100; sem filtro de status só retorna `ACTIVE`), filtros por tipo, espécie, cidade, e busca por raio (lat/lng/radiusKm juntos ou nenhum — SQL raw via Prisma `$queryRaw`, decidido com o usuário em 2026-07-09)
+- [x] `GET /api/pets/:id`, `PATCH /api/pets/:id` (só o dono), `DELETE /api/pets/:id` (soft delete, dono ou admin)
+- [x] Ao soft-deletar, fotos permanecem no storage (decidido com o usuário em 2026-07-09 — preserva evidência para revisão de moderação)
+- [x] Testes: unit da query de raio (repository, mockando `PrismaClient`), verificação manual da fórmula de Haversine contra Postgres real, e integração do CRUD/paginação/filtros (service e rota, mockando o service)
 
 ## Fase 3 — `messaging`
 

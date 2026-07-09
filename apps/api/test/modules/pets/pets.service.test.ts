@@ -7,6 +7,7 @@ import { InvalidPetPhotoError } from '../../../src/modules/pets/pets.errors.js';
 import type { PetListingDto } from '../../../src/modules/pets/pets.dto.js';
 import type { StorageGateway } from '../../../src/gateways/storage.gateway.service.js';
 import type { PetsRegistrationQueueGatewayService } from '../../../src/gateways/pets-registration-queue.gateway.service.js';
+import { ForbiddenError, NotFoundError } from '../../../src/infra/errors/app-error.js';
 
 async function makeJpegBuffer(width = 20, height = 20): Promise<Buffer> {
   return sharp({ create: { width, height, channels: 3, background: { r: 200, g: 50, b: 50 } } })
@@ -37,7 +38,13 @@ describe('PetsService', () => {
         longitude: -43.934493,
         city: 'Belo Horizonte',
         ownerId,
-        photos: [{ storageKey: 'listings/1/photo-1.jpg', url: 'https://example.com/photo-1.jpg', order: 0 }],
+        photos: [
+          {
+            storageKey: 'listings/1/photo-1.jpg',
+            url: 'https://example.com/photo-1.jpg',
+            order: 0,
+          },
+        ],
       };
       const listingId = randomUUID();
       const createdListing: PetListingDto = {
@@ -217,6 +224,213 @@ describe('PetsService', () => {
 
       expect(storageGatewayMock.save).not.toHaveBeenCalled();
       expect(queueGatewayMock.enqueue).not.toHaveBeenCalled();
+    });
+  });
+
+  function makeListing(overrides: Partial<PetListingDto> = {}): PetListingDto {
+    const createdAt = new Date();
+    return {
+      id: randomUUID(),
+      type: 'LOST',
+      title: 'Cachorro perdido',
+      description: 'Golden retriever, atende por Rex',
+      species: 'cachorro',
+      latitude: -23.55052,
+      longitude: -46.633308,
+      city: 'São Paulo',
+      status: 'ACTIVE',
+      ownerId: randomUUID(),
+      createdAt,
+      updatedAt: createdAt,
+      photos: [],
+      ...overrides,
+    };
+  }
+
+  describe('listListings', () => {
+    it('delegates filters to the repository and wraps the result with pagination info', async () => {
+      const listing = makeListing();
+      const repositoryMock = {
+        findMany: vi.fn().mockResolvedValue({ data: [listing], total: 1 }),
+      } as unknown as PetsRepository;
+      const service = new PetsService(
+        repositoryMock,
+        {} as StorageGateway,
+        {} as PetsRegistrationQueueGatewayService,
+      );
+
+      const filters = { status: 'ACTIVE' as const, offset: 0, limit: 20 };
+      const result = await service.listListings(filters);
+
+      expect(repositoryMock.findMany).toHaveBeenCalledWith(filters);
+      expect(result).toEqual({ data: [listing], pagination: { total: 1, offset: 0, limit: 20 } });
+    });
+  });
+
+  describe('getListing', () => {
+    it('delegates to the repository', async () => {
+      const listing = makeListing();
+      const repositoryMock = {
+        getById: vi.fn().mockResolvedValue(listing),
+      } as unknown as PetsRepository;
+      const service = new PetsService(
+        repositoryMock,
+        {} as StorageGateway,
+        {} as PetsRegistrationQueueGatewayService,
+      );
+
+      const result = await service.getListing(listing.id);
+
+      expect(result).toBe(listing);
+      expect(repositoryMock.getById).toHaveBeenCalledWith(listing.id);
+    });
+
+    it('propagates NotFoundError from the repository', async () => {
+      const repositoryMock = {
+        getById: vi.fn().mockRejectedValue(new NotFoundError('Anúncio')),
+      } as unknown as PetsRepository;
+      const service = new PetsService(
+        repositoryMock,
+        {} as StorageGateway,
+        {} as PetsRegistrationQueueGatewayService,
+      );
+
+      await expect(service.getListing(randomUUID())).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
+
+  describe('updateListing', () => {
+    it('updates when the requester owns the listing', async () => {
+      const ownerId = randomUUID();
+      const listing = makeListing({ ownerId });
+      const updated = { ...listing, title: 'Novo título' };
+      const repositoryMock = {
+        getById: vi.fn().mockResolvedValue(listing),
+        update: vi.fn().mockResolvedValue(updated),
+      } as unknown as PetsRepository;
+      const service = new PetsService(
+        repositoryMock,
+        {} as StorageGateway,
+        {} as PetsRegistrationQueueGatewayService,
+      );
+
+      const result = await service.updateListing({
+        id: listing.id,
+        requesterId: ownerId,
+        requesterRole: 'USER',
+        title: 'Novo título',
+      });
+
+      expect(result).toBe(updated);
+      expect(repositoryMock.update).toHaveBeenCalledWith(listing.id, { title: 'Novo título' });
+    });
+
+    it('throws ForbiddenError when the requester does not own the listing (even if ADMIN)', async () => {
+      const listing = makeListing({ ownerId: randomUUID() });
+      const repositoryMock = {
+        getById: vi.fn().mockResolvedValue(listing),
+        update: vi.fn(),
+      } as unknown as PetsRepository;
+      const service = new PetsService(
+        repositoryMock,
+        {} as StorageGateway,
+        {} as PetsRegistrationQueueGatewayService,
+      );
+
+      await expect(
+        service.updateListing({
+          id: listing.id,
+          requesterId: randomUUID(),
+          requesterRole: 'ADMIN',
+          title: 'x',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+      expect(repositoryMock.update).not.toHaveBeenCalled();
+    });
+
+    it('propagates NotFoundError from the repository without calling update', async () => {
+      const repositoryMock = {
+        getById: vi.fn().mockRejectedValue(new NotFoundError('Anúncio')),
+        update: vi.fn(),
+      } as unknown as PetsRepository;
+      const service = new PetsService(
+        repositoryMock,
+        {} as StorageGateway,
+        {} as PetsRegistrationQueueGatewayService,
+      );
+
+      await expect(
+        service.updateListing({
+          id: randomUUID(),
+          requesterId: randomUUID(),
+          requesterRole: 'USER',
+          title: 'x',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      expect(repositoryMock.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteListing', () => {
+    it('soft-deletes when the requester owns the listing', async () => {
+      const ownerId = randomUUID();
+      const listing = makeListing({ ownerId });
+      const repositoryMock = {
+        getById: vi.fn().mockResolvedValue(listing),
+        softDelete: vi.fn().mockResolvedValue(undefined),
+      } as unknown as PetsRepository;
+      const storageGatewayMock = { delete: vi.fn() } as unknown as StorageGateway;
+      const service = new PetsService(
+        repositoryMock,
+        storageGatewayMock,
+        {} as PetsRegistrationQueueGatewayService,
+      );
+
+      await service.deleteListing({ id: listing.id, requesterId: ownerId, requesterRole: 'USER' });
+
+      expect(repositoryMock.softDelete).toHaveBeenCalledWith(listing.id);
+      // Fotos permanecem no storage após soft-delete (decisão do usuário) —
+      // nenhuma chamada ao storage gateway.
+      expect(storageGatewayMock.delete).not.toHaveBeenCalled();
+    });
+
+    it('soft-deletes when the requester is ADMIN, even without owning the listing', async () => {
+      const listing = makeListing({ ownerId: randomUUID() });
+      const repositoryMock = {
+        getById: vi.fn().mockResolvedValue(listing),
+        softDelete: vi.fn().mockResolvedValue(undefined),
+      } as unknown as PetsRepository;
+      const service = new PetsService(
+        repositoryMock,
+        {} as StorageGateway,
+        {} as PetsRegistrationQueueGatewayService,
+      );
+
+      await service.deleteListing({
+        id: listing.id,
+        requesterId: randomUUID(),
+        requesterRole: 'ADMIN',
+      });
+
+      expect(repositoryMock.softDelete).toHaveBeenCalledWith(listing.id);
+    });
+
+    it('throws ForbiddenError for a non-owner, non-admin requester', async () => {
+      const listing = makeListing({ ownerId: randomUUID() });
+      const repositoryMock = {
+        getById: vi.fn().mockResolvedValue(listing),
+        softDelete: vi.fn(),
+      } as unknown as PetsRepository;
+      const service = new PetsService(
+        repositoryMock,
+        {} as StorageGateway,
+        {} as PetsRegistrationQueueGatewayService,
+      );
+
+      await expect(
+        service.deleteListing({ id: listing.id, requesterId: randomUUID(), requesterRole: 'USER' }),
+      ).rejects.toBeInstanceOf(ForbiddenError);
+      expect(repositoryMock.softDelete).not.toHaveBeenCalled();
     });
   });
 });

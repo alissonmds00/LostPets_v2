@@ -4,12 +4,18 @@ import type { PetsRepository } from './pets.repository.js';
 import { InvalidPetPhotoError } from './pets.errors.js';
 import type {
   CreatePetListingDto,
+  DeletePetListingInputDto,
+  ListPetsQueryDto,
   PetListingDto,
+  PetListingListDto,
   PetPhotoInputDto,
   SubmitListingForRegistrationInputDto,
+  UpdatePetListingInputDto,
 } from './pets.dto.js';
 import type { StorageGateway } from '../../gateways/storage.gateway.service.js';
 import type { PetsRegistrationQueueGatewayService } from '../../gateways/pets-registration-queue.gateway.service.js';
+import { ForbiddenError } from '../../infra/errors/app-error.js';
+import { Role } from '../../shared/enums/role.enum.js';
 
 // Tipos de imagem aceitos para foto de anúncio — qualquer outro é rejeitado
 // com InvalidPetPhotoError. Rejeitar em vez de tentar converter mantém a
@@ -74,6 +80,39 @@ export class PetsService {
     };
 
     await this.queueGateway.enqueue(JSON.stringify(createPetListingDto));
+  }
+
+  // GET /api/pets — sem regra de negócio além de delegar ao repository e
+  // montar o envelope de paginação (o repository já devolve total/data).
+  async listListings(filters: ListPetsQueryDto): Promise<PetListingListDto> {
+    const { data, total } = await this.repository.findMany(filters);
+    return { data, pagination: { total, offset: filters.offset, limit: filters.limit } };
+  }
+
+  // GET /api/pets/:id — repository já lança NotFoundError se não existir ou
+  // estiver soft-deletado, nada a checar aqui.
+  async getListing(id: string): Promise<PetListingDto> {
+    return this.repository.getById(id);
+  }
+
+  // PATCH /api/pets/:id — só o dono pode editar (nem admin, diferente de
+  // delete: editar o texto de um anúncio alheio não é uma ação de moderação).
+  async updateListing(input: UpdatePetListingInputDto): Promise<PetListingDto> {
+    const { id, requesterId, title, description, species, status } = input;
+    const listing = await this.repository.getById(id);
+    if (listing.ownerId !== requesterId) throw new ForbiddenError();
+    return this.repository.update(id, { title, description, species, status });
+  }
+
+  // DELETE /api/pets/:id — dono OU admin (admin cobre o caso de moderação
+  // remover um anúncio de outra pessoa). Soft delete via `deletedAt`; as
+  // fotos permanecem no storage (decisão do usuário — preserva evidência
+  // pra revisão de moderação de um anúncio já removido).
+  async deleteListing(input: DeletePetListingInputDto): Promise<void> {
+    const { id, requesterId, requesterRole } = input;
+    const listing = await this.repository.getById(id);
+    if (listing.ownerId !== requesterId && requesterRole !== Role.ADMIN) throw new ForbiddenError();
+    await this.repository.softDelete(id);
   }
 
   private assertValidPhoto(photo: { buffer: Buffer; contentType: string }): void {
