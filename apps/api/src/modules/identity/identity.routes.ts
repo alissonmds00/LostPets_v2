@@ -17,7 +17,7 @@ import {
 // Session infra (password hashing, session repository, requireAuth/requireRole
 // decorators — see auth.ts) is already built. register/login/logout/me are
 // all in place now, see PLAN.md phase 1.
-export async function identityModule(
+export async function identityPlugin(
   app: FastifyInstance,
   opts: FastifyPluginOptions & { env: Env },
 ): Promise<void> {

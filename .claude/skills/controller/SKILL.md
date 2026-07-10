@@ -33,6 +33,13 @@ description: >
   plugin do Fastify como o mecanismo de fronteira de módulo — é essa a razão pela qual este projeto
   escolheu Fastify (ver `ARCHITECTURE.md`), então centralizar rotas na raiz quebraria exatamente o
   que o encapsulamento de plugin foi escolhido pra garantir.
+- A função exportada por `<módulo>.routes.ts` (o plugin Fastify registrado via `app.register(...)`
+  em `app.ts`) se chama `<módulo>Plugin` — ex: `identityPlugin` em `identity.routes.ts`,
+  `petsPlugin` em `pets.routes.ts`. "Plugin" é o termo que a própria documentação do Fastify usa
+  pra essa forma (`async (app, opts) => Promise<void>` registrado via `.register()`); "module"
+  fica reservado pro bounded context/pasta (`modules/identity/`, `modules/pets/` como diretórios),
+  não pro identificador da função. Não use `<módulo>Module` como nome de função — isso mistura os
+  dois conceitos e foi renomeado justamente por causa dessa confusão.
 
 **Alternativas consideradas:** schemas inline no arquivo da rota (rejeitado — mantém tudo junto,
 mas o arquivo cresce demais conforme a rota fica complexa); response schema opcional/gradual
