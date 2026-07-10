@@ -5,11 +5,11 @@ import type { PetsRegistrationQueueGatewayService } from '../../../src/gateways/
 import type { PetsService } from '../../../src/modules/pets/pets.service.js';
 import type { PetListingDto } from '../../../src/modules/pets/pets.dto.js';
 
-// Consumer test (see the testing skill): both collaborators — the queue
-// gateway and the service — are mocked, so this never touches a real queue,
-// sqs-consumer, or a real service call. The gateway mock captures the
-// handler passed to startConsuming so tests can invoke it directly, the same
-// way sqs-consumer would when a message arrives.
+// Teste de consumer (ver skill testing): os dois colaboradores — queue
+// gateway e service — são mockados, então nunca toca fila real, sqs-consumer
+// ou service real. O mock do gateway captura o handler passado a
+// startConsuming para os testes poderem invocá-lo diretamente, do mesmo jeito
+// que o sqs-consumer faria ao receber uma mensagem.
 
 const buildLoggerMock = () =>
   ({

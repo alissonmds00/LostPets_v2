@@ -3,12 +3,12 @@ import { createPetListingSchema } from './pets.schema.js';
 import type { PetsRegistrationQueueGatewayService } from '../../gateways/pets-registration-queue.gateway.service.js';
 import type { PetsService } from './pets.service.js';
 
-// Background consumer for the pets-registration SQS queue, running inside
-// apps/api's own process (no separate apps/worker — see PLAN.md/
-// ARCHITECTURE.md "Pontos em aberto"). Lives inside the pets module, not
-// infra/, because the parsing/validation below is pets-specific business
-// logic (see skill infra-placement) — only the SQS mechanics themselves are
-// generic technical plumbing, and those stay wrapped inside the gateway.
+// Consumidor em background da fila SQS pets-registration, rodando dentro do
+// próprio processo do apps/api (sem apps/worker separado — ver PLAN.md/
+// ARCHITECTURE.md "Pontos em aberto"). Fica dentro do módulo pets, não em
+// infra/, porque o parsing/validação abaixo é lógica de negócio específica
+// de pets (ver skill infra-placement) — só a mecânica do SQS em si é
+// plumbing técnico genérico, e essa fica encapsulada dentro do gateway.
 export function startPetsRegistrationConsumer(
   queueGateway: PetsRegistrationQueueGatewayService,
   petsService: PetsService,

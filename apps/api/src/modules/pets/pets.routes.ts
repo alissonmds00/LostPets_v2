@@ -17,8 +17,6 @@ import {
 } from './pets.schema.js';
 import type { RawPetPhotoUploadDto } from './pets.dto.js';
 
-// Campos de texto esperados no multipart, além dos arquivos de foto — mesmo
-// nome usado em submitPetListingBodySchema.
 const TEXT_FIELDS = [
   'type',
   'title',
