@@ -1,5 +1,5 @@
-// Base class for all expected/domain errors. Anything that escapes as a
-// plain Error is treated as a bug and returns 500 with no leaked detail.
+// Classe base dos erros esperados/de domínio. Qualquer erro que escapar como
+// Error simples é tratado como bug e retorna 500 sem vazar detalhe.
 export class AppError extends Error {
   constructor(
     public readonly statusCode: number,

@@ -7,11 +7,10 @@ import type { AuthenticatedUserDto } from '../modules/identity/identity.dto.js';
 declare module 'fastify' {
   interface FastifyRequest {
     user?: AuthenticatedUserDto;
-    // Id of the session validated by requireAuth. request.user only carries
-    // the authenticated user's own data (see AuthenticatedUserDto), not which
-    // session authenticated it — logout needs the session id itself (to
-    // delete that exact row via IdentityRepository.deleteById), so it's
-    // attached here as its own field rather than folded into `user`.
+    // request.user só carrega os dados do usuário (AuthenticatedUserDto), não
+    // qual sessão autenticou — logout precisa do id da sessão em si (pra
+    // deletar a linha exata via IdentityRepository.deleteById), por isso fica
+    // num campo próprio em vez de dentro de `user`.
     sessionId?: string;
   }
 
@@ -24,30 +23,24 @@ declare module 'fastify' {
   }
 }
 
-// Lives in infra/ (not modules/identity/), even though it depends on
-// IdentityRepository for its session lookup: this is cross-cutting request
-// middleware, needed by every domain module that has authenticated routes
-// (pets, messaging, moderation), not identity-exclusive business logic. It's
-// not owned by the module whose data it happens to query — see the
-// auth-middleware skill for the full reasoning.
+// Fica em infra/ (não em modules/identity/) mesmo dependendo de
+// IdentityRepository: é middleware transversal, usado por todo módulo com
+// rotas autenticadas (pets, messaging, moderation), não regra de negócio
+// exclusiva de identity — não pertence ao módulo só porque consulta os dados
+// dele. Ver skill auth-middleware.
 //
-// Registered from app.ts (not nested inside identityPlugin's own
-// app.register(...) call) so the decorators it adds land on the root Fastify
-// instance and are visible to every module registered as a sibling. Wrapping
-// with fastify-plugin (`fp`) reinforces that even if this ever gets nested:
-// fp opts the plugin out of Fastify's default encapsulation, so its
-// decorators still attach to the parent scope instead of being trapped in a
-// child context.
-//
-// register/login/logout/me routes are NOT built here — this only wires the
-// reusable requireAuth/requireRole hooks so those routes (built in later
-// tasks) can use them.
+// Registrado a partir de app.ts (não aninhado dentro do próprio
+// app.register(...) de identityPlugin) pra que os decorators adicionados
+// caiam na instância raiz do Fastify e fiquem visíveis pra todo módulo
+// registrado como irmão. O wrapper fastify-plugin (`fp`) garante isso mesmo
+// que este plugin passe a ser aninhado no futuro: `fp` tira o plugin do
+// encapsulamento padrão do Fastify, então os decorators continuam anexados
+// ao escopo pai em vez de ficarem presos num contexto filho.
 export const authPlugin = fp(
   async (app, opts: { env: Env }) => {
-    // Uses the single IdentityRepository instance decorated onto the root
-    // instance in app.ts (dependency injection via Fastify's native decorate
-    // mechanism) instead of instantiating its own — see the
-    // dependency-injection skill.
+    // Usa a instância única de IdentityRepository decorada na instância raiz
+    // em app.ts (injeção de dependência via decorate nativo do Fastify) em
+    // vez de instanciar a sua própria — ver skill dependency-injection.
     const repository = app.identityRepository;
     const cookieName = opts.env.SESSION_COOKIE_NAME;
 

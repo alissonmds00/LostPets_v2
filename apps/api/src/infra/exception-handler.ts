@@ -7,14 +7,16 @@ export interface ErrorResponse {
   body: { error: { code: string; message: string; details?: unknown } };
 }
 
-// Every error response, regardless of source, ends up in this one shape:
-// { error: { code, message, details? } }. Routes should throw AppError
-// subclasses (or let Zod validation fail) rather than building responses by hand.
+// Toda resposta de erro, seja qual for a origem, cai neste formato único:
+// { error: { code, message, details? } }. Rotas devem lançar subclasses de
+// AppError (ou deixar a validação do Zod falhar) em vez de montar a resposta
+// na mão.
 //
-// Kept as a plain function (no Fastify types) so callers can pass it straight
-// into `app.setErrorHandler((error, request, reply) => {...})` and let
-// TypeScript infer the correct request/reply generics from Fastify itself,
-// rather than fighting Fastify's generics under `exactOptionalPropertyTypes`.
+// Mantida como função pura (sem tipos do Fastify) pra poder ser passada
+// direto pra `app.setErrorHandler((error, request, reply) => {...})` e
+// deixar o TypeScript inferir os generics de request/reply a partir do
+// próprio Fastify, em vez de brigar com os generics dele sob
+// `exactOptionalPropertyTypes`.
 export function formatErrorResponse(error: unknown): ErrorResponse {
   if (error instanceof AppError) {
     return {
@@ -32,12 +34,12 @@ export function formatErrorResponse(error: unknown): ErrorResponse {
     };
   }
 
-  // fastify-type-provider-zod's validatorCompiler (v4) never throws a raw
-  // ZodError for a request body/params/querystring/headers failure — it
-  // returns a Fastify FST_ERR_VALIDATION error carrying a `.validation` array
-  // instead (the ZodError branch above only ever catches a ZodError thrown
-  // directly by application code, not by Fastify's schema validation). This
-  // is the library's own documented type guard for that case.
+  // O validatorCompiler (v4) do fastify-type-provider-zod nunca lança um
+  // ZodError puro pra falha de body/params/querystring/headers — ele retorna
+  // um erro FST_ERR_VALIDATION do Fastify com um array `.validation` (o branch
+  // de ZodError acima só captura ZodError lançado direto por código da
+  // aplicação, não pela validação de schema do Fastify). Este é o type guard
+  // documentado pela própria lib pra esse caso.
   if (hasZodFastifySchemaValidationErrors(error)) {
     return {
       statusCode: 400,

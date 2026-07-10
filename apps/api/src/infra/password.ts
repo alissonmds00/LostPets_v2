@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import argon2 from 'argon2';
 
-// Lives in infra/, not modules/identity/: password hashing is technical
-// plumbing (argon2 wrapping) with no business meaning of its own, exactly
-// like the Prisma client or env loading that already live here — it doesn't
-// become "identity's" just because identity is its only caller today. See
-// the infra-placement skill for the general criterion.
+// Fica em infra/, não em modules/identity/: hashing de senha é encanamento
+// técnico (wrapper do argon2) sem significado de negócio próprio, igual ao
+// cliente Prisma ou o carregamento de env que já ficam aqui — não vira
+// "de identity" só porque identity é o único chamador hoje. Ver skill
+// infra-placement pro critério geral.
 export async function hashPassword(plain: string): Promise<string> {
   return argon2.hash(plain);
 }
@@ -14,12 +14,13 @@ export async function verifyPassword(hash: string, plain: string): Promise<boole
   return argon2.verify(hash, plain);
 }
 
-// Timing-attack mitigation for /login (see SECURITY-AUDIT.md, section 4,
-// item 1): when a user isn't found, IdentityService.login still needs to
-// pay the same argon2 CPU cost as the "wrong password" path, so the two
-// failure responses take the same amount of time and don't leak whether
-// an email is registered. Computed lazily and cached in memory so the hash
-// (and its CPU cost) is generated once per process, not once per request.
+// Mitigação de timing attack pra /login (ver SECURITY-AUDIT.md, seção 4, item
+// 1): quando o usuário não é encontrado, IdentityService.login ainda precisa
+// pagar o mesmo custo de CPU do argon2 que o caminho de "senha errada", pra
+// que as duas respostas de falha levem o mesmo tempo e não vazem se um e-mail
+// está cadastrado. Computado sob demanda e cacheado em memória pra que o hash
+// (e seu custo de CPU) seja gerado uma vez por processo, não uma vez por
+// requisição.
 let dummyPasswordHashPromise: Promise<string> | undefined;
 
 export function getDummyPasswordHash(): Promise<string> {

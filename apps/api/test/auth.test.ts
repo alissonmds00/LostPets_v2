@@ -19,18 +19,16 @@ const testEnv: Env = {
   SQS_REGION: 'us-east-1',
 };
 
-// Exercises requireAuth/requireRole via a throwaway route registered only in
-// this test. requireAuth's only collaborator is identityRepository (see
-// infra/auth.ts — it calls repository.findValidById directly, never
-// identityService), so an in-memory session store standing in for
-// identityRepository is enough here — no Postgres involved (see the testing
-// skill's 2026-07-04 revision).
+// requireAuth só depende de identityRepository (ver infra/auth.ts — chama
+// repository.findValidById direto, nunca identityService), então um
+// session store em memória substituindo identityRepository já basta aqui —
+// sem Postgres envolvido (skill testing, revisão 2026-07-04).
 //
-// Awaits app.ready() before returning: @fastify/cookie's signCookie/
-// unsignCookie decorators (and requireAuth/requireRole from authPlugin) are
-// only attached once Fastify finishes booting all registered plugins, so
-// calling app.signCookie(...) right after buildApp() (before boot completes)
-// throws "not a function".
+// Espera app.ready() antes de retornar: os decorators signCookie/
+// unsignCookie do @fastify/cookie (e requireAuth/requireRole do authPlugin)
+// só são anexados depois que o Fastify termina de inicializar todos os
+// plugins registrados, então chamar app.signCookie(...) logo após
+// buildApp() (antes do boot terminar) lança "not a function".
 async function buildTestApp() {
   const sessions = new Map<string, SessionWithUserDto>();
 
@@ -123,9 +121,9 @@ describe('requireAuth / requireRole', () => {
   });
 
   it('returns 401 for an expired session', async () => {
-    // Mirrors IdentityRepository.findValidById's own contract: an expired
-    // session is treated the same as a missing one (null), so the mock
-    // simply doesn't seed anything for this sessionId — see
+    // Espelha o próprio contrato de IdentityRepository.findValidById: uma
+    // sessão expirada é tratada igual a uma inexistente (null), então o mock
+    // simplesmente não popula nada pra esse sessionId — ver
     // identity.repository.ts.
     const { app } = await buildTestApp();
     const signed = app.signCookie(randomUUID());
