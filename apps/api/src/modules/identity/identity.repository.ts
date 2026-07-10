@@ -1,5 +1,4 @@
-import { Prisma } from '@prisma/client';
-import { prisma } from '../../infra/db/prisma.js';
+import { Prisma, type PrismaClient } from '@prisma/client';
 import { ConflictError } from '../../infra/errors/app-error.js';
 import type {
   CreateUserDto,
@@ -9,6 +8,8 @@ import type {
 } from './identity.dto.js';
 
 export class IdentityRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
   // Doesn't pre-check email uniqueness with a separate lookup (findByEmail then
   // create) — that's a check-then-act race under concurrent requests. Instead
   // this relies on the DB's own unique constraint and translates Prisma's
@@ -16,7 +17,7 @@ export class IdentityRepository {
   // skill's not-found translation convention.
   async createUser(user: CreateUserDto): Promise<UserDto> {
     try {
-      return await prisma.user.create({
+      return await this.prisma.user.create({
         data: { email: user.email, passwordHash: user.passwordHash, name: user.name },
         select: { id: true, email: true, name: true, role: true, createdAt: true },
       });
@@ -32,11 +33,11 @@ export class IdentityRepository {
   // error — findX (null), not getX (NotFoundError). Includes `passwordHash`
   // since the service needs it to verify the login attempt.
   async findByEmail(email: string): Promise<UserWithPasswordDto | null> {
-    return prisma.user.findUnique({ where: { email } });
+    return this.prisma.user.findUnique({ where: { email } });
   }
 
   async create(userId: string, expiresAt: Date): Promise<SessionWithUserDto> {
-    return prisma.session.create({
+    return this.prisma.session.create({
       data: { userId, expiresAt },
       include: { user: true },
     });
@@ -47,13 +48,13 @@ export class IdentityRepository {
   // with this session id (requireAuth), so this stays a findX (null), not a
   // getX (NotFoundError).
   async findValidById(sessionId: string): Promise<SessionWithUserDto | null> {
-    return prisma.session.findFirst({
+    return this.prisma.session.findFirst({
       where: { id: sessionId, expiresAt: { gt: new Date() } },
       include: { user: true },
     });
   }
 
   async deleteById(sessionId: string): Promise<void> {
-    await prisma.session.deleteMany({ where: { id: sessionId } });
+    await this.prisma.session.deleteMany({ where: { id: sessionId } });
   }
 }

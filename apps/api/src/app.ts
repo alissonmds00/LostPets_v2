@@ -13,9 +13,11 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod';
 import { randomUUID } from 'node:crypto';
+import type { PrismaClient } from '@prisma/client';
 import type { Env } from './infra/config/env.js';
 import { formatErrorResponse } from './infra/exception-handler.js';
 import { authPlugin } from './infra/auth.js';
+import { prisma } from './infra/db/prisma.js';
 import { identityModule } from './modules/identity/identity.routes.js';
 import { IdentityRepository } from './modules/identity/identity.repository.js';
 import { IdentityService } from './modules/identity/identity.service.js';
@@ -36,6 +38,7 @@ import { PetsRegistrationQueueGatewayService } from './gateways/pets-registratio
 // in infra/auth.ts for requireAuth/requireRole.
 declare module 'fastify' {
   interface FastifyInstance {
+    prisma: PrismaClient;
     identityRepository: IdentityRepository;
     identityService: IdentityService;
     petsRepository: PetsRepository;
@@ -122,6 +125,19 @@ export function buildApp(
 
   app.get('/health', async () => ({ status: 'ok' }));
 
+  // Prisma is decorated first, same DI mechanism as every other
+  // service/repository below (see the dependency-injection skill) — it used
+  // to be the one exception, imported as a bare singleton straight into each
+  // repository instead of flowing through app.decorate. The singleton itself
+  // still lives in infra/db/prisma.ts unchanged; only its lifecycle is now
+  // tied to this Fastify instance: decorated once here, injected into every
+  // repository's constructor below, and disconnected via the onClose hook
+  // when the app shuts down (see server.ts for what actually triggers that).
+  app.decorate('prisma', prisma);
+  app.addHook('onClose', async (instance) => {
+    await instance.prisma.$disconnect();
+  });
+
   // Dependency injection via Fastify's native decorate mechanism (chosen over
   // @fastify/awilix to avoid introducing a new container/cradle concept when
   // decorate already solves the coupling problem — see the
@@ -136,7 +152,7 @@ export function buildApp(
   // app.identityRepository directly — even when a test overrides
   // identityService only, the real repository is still built here so
   // requireAuth keeps working for any route it guards in that test.
-  const identityRepository = overrides?.identityRepository ?? new IdentityRepository();
+  const identityRepository = overrides?.identityRepository ?? new IdentityRepository(prisma);
   app.decorate('identityRepository', identityRepository);
   app.decorate(
     'identityService',
@@ -151,7 +167,7 @@ export function buildApp(
   // mocked), nothing else in the app depends on the real petsRepository when
   // petsService is overridden in a test, so this is simpler: each override
   // only affects its own decorator.
-  const petsRepository = overrides?.petsRepository ?? new PetsRepository();
+  const petsRepository = overrides?.petsRepository ?? new PetsRepository(prisma);
   app.decorate('petsRepository', petsRepository);
   app.decorate(
     'petsService',

@@ -46,6 +46,30 @@ já é resolvido pelo mecanismo nativo do Fastify (`decorate`); adicionar um con
 conceito novo (cradle, registration, resolution mode) sem resolver nada que `decorate` já não
 resolvesse, contrariando o objetivo de aprender o próprio framework antes de somar bibliotecas.
 
+### Caso explícito: ciclo de vida do Prisma (registrado em 2026-07-10)
+
+O `PrismaClient` era a única exceção a esta convenção: `infra/db/prisma.ts` exporta um singleton nu
+(`export const prisma = new PrismaClient();`) que cada repository importava direto, passando ao
+largo do ciclo de vida do Fastify. Isso fechou essa lacuna alinhando o Prisma ao mesmo padrão de DI
+de qualquer outro colaborador:
+
+- O singleton em si continua existindo em `infra/db/prisma.ts` sem mudança — o que muda é como ele
+  chega a cada repository.
+- Decorado **uma vez** em `app.ts`, junto dos outros decorates e antes de qualquer
+  `app.register(...)` que dependa dele: `app.decorate('prisma', prisma)`, com o
+  `declare module 'fastify' { interface FastifyInstance { prisma: PrismaClient; } }`
+  correspondente.
+- Desconectado via `app.addHook('onClose', async (instance) => { await instance.prisma.$disconnect();
+  })` — o guia oficial Fastify+Prisma (fastify.dev/docs/latest/Guides/Prisma) recomenda exatamente
+  isso: o `onClose` só dispara quando algo chama `app.close()` (ver o handler de
+  `SIGTERM`/`SIGINT` em `server.ts`, que é o que de fato aciona isso em produção).
+- Injetado no **construtor** de cada repository, como qualquer outra dependência desta convenção —
+  `new IdentityRepository(prisma)`, `new PetsRepository(prisma)` — e usado como `this.prisma.*`
+  dentro da classe, em vez de importar o módulo `infra/db/prisma.ts` diretamente. Isso também
+  simplifica o teste de repository: mockar o `PrismaClient` agora é injeção direta via construtor
+  (`mockDeep<PrismaClient>()` passado pra `new XRepository(prismaMock)`), sem precisar de
+  `vi.mock(...)` substituindo o módulo — ver skill `testing`.
+
 ## Como aplicar
 
 Ao ligar um service/repository novo na aplicação:
