@@ -8,12 +8,10 @@ import { ConflictError, UnauthorizedError } from '../../../src/infra/errors/app-
 import type { SessionWithUserDto, UserWithPasswordDto } from '../../../src/modules/identity/identity.dto.js';
 
 describe('IdentityService', () => {
-  // Repository mocked (see the testing skill's 2026-07-04 revision): the
-  // service is tested in isolation from Postgres, exercising only its own
-  // business logic (what it decides, what it throws, what arguments it
-  // passes the repository). Only the methods IdentityService actually calls
-  // (createUser, findByEmail, create, deleteById) need stubs — findValidById
-  // is used elsewhere (e.g. requireAuth), not by this service.
+  // Repository mockado (skill testing, revisão de 2026-07-04): o service é
+  // testado isolado do Postgres. Só os métodos que IdentityService realmente
+  // chama precisam de stub — findValidById é usado em outro lugar (ex.
+  // requireAuth), não por este service.
   let repositoryMock: Pick<IdentityRepository, 'createUser' | 'findByEmail' | 'create' | 'deleteById'>;
   let service: IdentityService;
 
@@ -24,8 +22,6 @@ describe('IdentityService', () => {
       create: vi.fn(),
       deleteById: vi.fn(),
     };
-    // Same constructor used in production (see the dependency-injection
-    // skill) — only what's passed as the repository changes.
     service = new IdentityService(repositoryMock as IdentityRepository, 7);
   });
 
@@ -44,9 +40,8 @@ describe('IdentityService', () => {
       ];
       expect(callArg.email).toBe(email);
       expect(callArg.name).toBe('Jane');
-      // Verifies hashing happened before the repository call, without
-      // reversing the hash — just confirming it's not the plain password,
-      // and that it's a real argon2 verifiable hash.
+      // Confirma o hashing sem reverter o hash — só que não é a senha em
+      // texto plano e que é um hash argon2 verificável de verdade.
       expect(callArg.passwordHash).not.toBe('correct horse battery');
       await expect(verifyPassword(callArg.passwordHash, 'correct horse battery')).resolves.toBe(true);
     });
@@ -120,13 +115,10 @@ describe('IdentityService', () => {
       expect(repositoryMock.create).not.toHaveBeenCalled();
     });
 
-    // Timing-attack mitigation (see SECURITY-AUDIT.md, section 4, item 1):
-    // verifyPassword (argon2, CPU-expensive) must run on both the
-    // "email doesn't exist" path and the "wrong password" path, so the two
-    // failure responses take the same amount of time and don't leak whether
-    // an email is registered via response latency. We spy on verifyPassword
-    // and getDummyPasswordHash (infra, not the repository) purely to observe
-    // they're invoked on the not-found path.
+    // Mitigação de timing attack (SECURITY-AUDIT.md, seção 4, item 1):
+    // verifyPassword precisa rodar tanto no caminho de "e-mail não existe"
+    // quanto no de "senha errada", pra que as duas falhas levem o mesmo tempo
+    // e a latência não vaze se o e-mail está cadastrado.
     it('calls verifyPassword and getDummyPasswordHash even when the email does not exist, to equalize timing with the wrong-password path', async () => {
       (repositoryMock.findByEmail as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       const verifySpy = vi.spyOn(passwordModule, 'verifyPassword');

@@ -20,15 +20,12 @@ const testEnv: Env = {
   SQS_REGION: 'us-east-1',
 };
 
-// POST /logout has requireAuth as its own preHandler, so every test in this
-// file exercises requireAuth — which reads app.identityRepository directly
-// (see infra/auth.ts), not identityService. identityRepository is mocked
-// with an in-memory session store so deleteById (called by identityService's
-// mocked logout below) actually makes findValidById stop returning it
-// afterward — that's what the third test needs to observe. identityService
-// is mocked too, delegating logout to that same store, so the assertions
-// don't depend on Postgres for either collaborator (see the testing skill's
-// 2026-07-04 revision).
+// identityRepository é mockado com um store de sessão em memória pra que
+// deleteById (chamado pelo logout mockado abaixo) realmente faça
+// findValidById parar de retorná-la depois — é o que o terceiro teste
+// verifica. identityService também é mockado, delegando pro mesmo store, pra
+// nenhuma asserção depender do Postgres (skill testing, revisão de
+// 2026-07-04).
 function buildTestApp(userId: string) {
   const sessions = new Map<string, SessionWithUserDto>();
 
@@ -98,8 +95,8 @@ describe('POST /api/identity/logout', () => {
 
     const setCookie = response.cookies.find((c) => c.name === testEnv.SESSION_COOKIE_NAME);
     expect(setCookie).toBeDefined();
-    // Cleared cookie: empty value and already-expired Max-Age/Expires, same
-    // shape @fastify/cookie's reply.clearCookie() produces.
+    // Cookie limpo: valor vazio e Max-Age/Expires já expirados, mesmo shape
+    // que reply.clearCookie() do @fastify/cookie produz.
     expect(setCookie?.value).toBe('');
 
     await app.close();

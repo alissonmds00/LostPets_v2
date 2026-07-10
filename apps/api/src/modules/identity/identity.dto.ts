@@ -13,37 +13,28 @@ import type {
 
 export type SessionWithUserDto = z.infer<typeof sessionWithUserSchema>;
 
-// The subset of a session's user that's safe to attach to `request.user` —
-// never includes `passwordHash`.
 export type AuthenticatedUserDto = SessionWithUserDto['user'];
 
-// POST /register request body.
 export type RegisterUserInputDto = z.infer<typeof registerUserBodySchema>;
 
-// Safe user shape for API responses — never includes `passwordHash`. General-
-// purpose "safe user" projection (register's response, and anywhere else a
-// route needs to serialize a user).
 export type UserDto = z.infer<typeof userResponseSchema>;
 
-// What the repository needs to create a `User` row — already-hashed password,
-// never the plain-text one (hashing happens in the service, not here).
+// Hashing acontece no service, não aqui — este DTO já espera a senha
+// convertida em `passwordHash`, nunca em texto plano.
 export type CreateUserDto = z.infer<typeof createUserSchema>;
 
-// Full user row, including `passwordHash` — internal to
-// repository/service (IdentityRepository.findByEmail, used to verify a login
-// attempt), never returned as-is to a route or client.
+// Inclui `passwordHash`; nunca deve ser retornado como está pra uma rota ou
+// cliente.
 export type UserWithPasswordDto = z.infer<typeof userWithPasswordSchema>;
 
 export type LoginBodyDto = z.infer<typeof loginBodySchema>;
 export type LoginResponseDto = z.infer<typeof loginResponseSchema>;
 
-// Internal result of IdentityService.login — not a wire schema itself (no
-// route serializes this exact shape directly), derived from loginResultSchema
-// like every other DTO in this project (see the `dto` skill: no hand-written
-// interfaces, even for internal shapes). The usecase reads `session` to set
-// the cookie and `user` to build the LoginResponseDto.
+// Não é um schema de wire em si — deriva de loginResultSchema como todo DTO
+// deste projeto (skill `dto`: nenhuma interface escrita à mão, nem pra shapes
+// internos).
 export type LoginResultDto = z.infer<typeof loginResultSchema>;
 
-// Response body for GET /api/identity/me — same shape as AuthenticatedUserDto
-// (see meResponseSchema for why this isn't UserDto).
+// Mesmo shape de AuthenticatedUserDto, não de UserDto (ver meResponseSchema
+// pelo motivo).
 export type GetMeResultDto = z.infer<typeof meResponseSchema>;

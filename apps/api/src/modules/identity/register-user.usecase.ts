@@ -1,14 +1,11 @@
 import type { IdentityService } from './identity.service.js';
 import type { RegisterUserInputDto, UserDto } from './identity.dto.js';
 
-// Single-module operation today (only orchestrates identity's own service),
-// but every route still goes through a usecase per the usecase skill — no
-// route -> service shortcut, even for simple single-module flows. Plain
-// function taking the already-instantiated service as a parameter (not a
-// class needing `new`) — per the dependency-injection skill, usecases never
-// instantiate their own service; the route reads it from `app.identityService`
-// (decorated once in app.ts) and passes it in here, matching the shape used
-// by loginUsecase in the identity-login branch.
+// Passa por usecase mesmo orquestrando só o service de identity (skill
+// usecase: sem atalho rota -> service). Função pura recebendo o service já
+// instanciado como parâmetro — usecases nunca instanciam seu próprio service
+// (skill dependency-injection); a rota lê de `app.identityService` (decorado
+// uma vez em app.ts) e repassa aqui.
 export async function registerUserUsecase(
   identityService: IdentityService,
   input: RegisterUserInputDto,

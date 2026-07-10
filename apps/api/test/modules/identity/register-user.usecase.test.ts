@@ -19,9 +19,8 @@ const testEnv: Env = {
   SQS_REGION: 'us-east-1',
 };
 
-// Route under test (POST /register) never goes through requireAuth, so only
-// identityService needs mocking here — no real repository/Postgres involved
-// (see the testing skill's 2026-07-04 revision).
+// POST /register nunca passa por requireAuth, então só identityService
+// precisa de mock aqui (skill testing, revisão de 2026-07-04).
 function buildTestApp(identityService: Pick<IdentityService, 'registerUser'>) {
   return buildApp(testEnv, { identityService: identityService as IdentityService });
 }

@@ -1,17 +1,11 @@
 import type { IdentityService } from './identity.service.js';
 import type { LoginBodyDto, LoginResultDto } from './identity.dto.js';
 
-// Lives in usecases/ (outside modules/), per the usecase skill: every route
-// goes through a usecase, even a single-module flow like this one — no
-// route -> service shortcut. Login only needs identity's service today, but
-// staying consistent with the rest of the project (and leaving room for this
-// to later touch a second module, e.g. an audit log) is the point of the
-// rule, not an exception for "simple" cases.
-//
-// Plain function taking the already-decorated service as a parameter, never
-// instantiating its own `new IdentityService()` — the single instance lives
-// on the root Fastify instance (app.identityService), built once in app.ts
-// and passed in by the route. See the dependency-injection skill.
+// Passa por usecase mesmo sendo um fluxo de um módulo só (skill usecase: toda
+// rota passa por um, sem atalho rota -> service). Função pura recebendo o
+// service já decorado como parâmetro, nunca instanciando seu próprio
+// `new IdentityService()` — a instância única vive em app.identityService,
+// montada uma vez em app.ts (skill dependency-injection).
 export async function loginUsecase(
   identityService: IdentityService,
   body: LoginBodyDto,

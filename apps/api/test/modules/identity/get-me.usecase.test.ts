@@ -19,12 +19,10 @@ const testEnv: Env = {
   SQS_REGION: 'us-east-1',
 };
 
-// GET /me's only preHandler is requireAuth, and getMeUsecase itself never
-// calls identityService (see src/usecases/get-me.usecase.ts — it just
-// formats request.user, already attached by requireAuth). So only
-// identityRepository needs mocking here — requireAuth is the sole
-// collaborator these tests exercise (see the testing skill's 2026-07-04
-// revision).
+// GET /me só tem requireAuth como preHandler, e getMeUsecase nunca chama
+// identityService — só formata request.user, já anexado por requireAuth. Por
+// isso só identityRepository precisa de mock aqui (skill testing, revisão de
+// 2026-07-04).
 function buildTestApp(findValidById: IdentityRepository['findValidById']) {
   const identityRepository: Pick<IdentityRepository, 'findValidById'> = {
     findValidById: vi.fn(findValidById),
@@ -60,9 +58,8 @@ describe('GET /api/identity/me', () => {
   });
 
   it('returns 401 for an expired session', async () => {
-    // Mirrors IdentityRepository.findValidById's own contract: an expired
-    // session is treated as not found (null), not returned and checked for
-    // expiry elsewhere — see identity.repository.ts.
+    // Reflete o contrato de IdentityRepository.findValidById: sessão expirada
+    // é tratada como não encontrada (null), não retornada e checada aqui.
     const app = buildTestApp(async () => null);
     await app.ready();
 
