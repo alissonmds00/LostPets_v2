@@ -30,6 +30,12 @@ model User {
   petListings PetListing[]
   reports     Report[]
 
+  // Duas relações nomeadas pro mesmo model (Message) — Prisma exige um nome
+  // explícito quando há mais de uma FK entre os mesmos dois models, senão não
+  // sabe qual `Message.senderId`/`receiverId` corresponde a qual lado.
+  sentMessages     Message[] @relation("MessageSender")
+  receivedMessages Message[] @relation("MessageReceiver")
+
   @@map("users")
 }
 
@@ -76,8 +82,9 @@ model PetListing {
   updatedAt   DateTime         @updatedAt
   deletedAt   DateTime?
 
-  photos  PetPhoto[]
-  reports Report[]
+  photos   PetPhoto[]
+  messages Message[]
+  reports  Report[]
 
   @@index([ownerId])
   @@map("pet_listings")
@@ -97,9 +104,30 @@ model PetPhoto {
 }
 
 // ---------------------------------------------------------------------------
-// messaging module adds its own models here as it's built (phase 3 — see
-// PLAN.md). Each module's repository only ever queries the models it owns.
+// messaging module (phase 3 — see PLAN.md)
 // ---------------------------------------------------------------------------
+
+model Message {
+  id         String     @id @default(uuid())
+  senderId   String
+  sender     User       @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User       @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  listingId  String
+  listing    PetListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  body       String
+  createdAt  DateTime   @default(now())
+  // Delivery receipt (não "lida pelo usuário") — setado quando a mensagem é
+  // entregue com sucesso ao socket aberto do destinatário no momento do
+  // envio; null enquanto o destinatário está offline. Decidido com o usuário
+  // em 2026-07-09 — ver skill messaging.
+  readAt     DateTime?
+
+  @@index([listingId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@map("messages")
+}
 
 // ---------------------------------------------------------------------------
 // moderation module (phase 4 — see PLAN.md)

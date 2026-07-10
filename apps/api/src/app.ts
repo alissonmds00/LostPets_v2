@@ -4,6 +4,7 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import websocket from '@fastify/websocket';
 import Fastify from 'fastify';
 import {
   jsonSchemaTransform,
@@ -24,6 +25,10 @@ import { PetsService } from './modules/pets/pets.service.js';
 import { moderationModule } from './modules/moderation/moderation.routes.js';
 import { ModerationRepository } from './modules/moderation/moderation.repository.js';
 import { ModerationService } from './modules/moderation/moderation.service.js';
+import { messagingModule } from './modules/messaging/messaging.routes.js';
+import { MessagingRepository } from './modules/messaging/messaging.repository.js';
+import { MessagingService } from './modules/messaging/messaging.service.js';
+import { messagingConnectionRegistry } from './modules/messaging/messaging-connection.registry.js';
 import { createStorageGateway } from './gateways/storage.gateway.service.js';
 import { PetsRegistrationQueueGatewayService } from './gateways/pets-registration-queue.gateway.service.js';
 
@@ -37,6 +42,8 @@ declare module 'fastify' {
     petsService: PetsService;
     moderationRepository: ModerationRepository;
     moderationService: ModerationService;
+    messagingRepository: MessagingRepository;
+    messagingService: MessagingService;
   }
 }
 
@@ -66,6 +73,8 @@ export function buildApp(
     petsRepository?: PetsRepository;
     moderationService?: ModerationService;
     moderationRepository?: ModerationRepository;
+    messagingService?: MessagingService;
+    messagingRepository?: MessagingRepository;
   },
 ) {
   const app = Fastify({
@@ -95,6 +104,9 @@ export function buildApp(
   app.register(rateLimit, { global: false });
   // Necessário pra POST /api/pets aceitar upload de foto via multipart/form-data.
   app.register(multipart);
+  // Necessário pra rota WS de messaging (@fastify/websocket decora
+  // app.injectWS pra teste e habilita `{ websocket: true }` em rotas).
+  app.register(websocket);
 
   // Swagger UI exposes the full API shape (routes, schemas) and is only useful
   // for exercising endpoints during development, so it's kept out of production.
@@ -159,6 +171,18 @@ export function buildApp(
     overrides?.moderationService ?? new ModerationService(moderationRepository),
   );
 
+  // Mesmo padrão acima. `messagingConnectionRegistry` é o singleton
+  // module-local (não decorado em `app`, ver messaging-connection.registry.ts)
+  // injetado no construtor do service real — não passa pelas overrides de
+  // teste porque é um Map em memória, não uma infra externa a mockar.
+  const messagingRepository = overrides?.messagingRepository ?? new MessagingRepository();
+  app.decorate('messagingRepository', messagingRepository);
+  app.decorate(
+    'messagingService',
+    overrides?.messagingService ??
+      new MessagingService(messagingRepository, messagingConnectionRegistry),
+  );
+
   // Registered at root (not nested inside identityModule's own
   // app.register(...) below) so requireAuth/requireRole are visible to every
   // module registered as a sibling here — pets/messaging/moderation routes
@@ -173,7 +197,7 @@ export function buildApp(
   app.register(identityModule, { prefix: '/api/identity', env });
   app.register(petsModule, { prefix: '/api/pets' });
   app.register(moderationModule, { prefix: '/api/moderation' });
-  // messaging module is registered here as it's built — see PLAN.md.
+  app.register(messagingModule, { prefix: '/api/messaging' });
 
   return app;
 }

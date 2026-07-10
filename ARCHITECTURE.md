@@ -15,7 +15,7 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
 | Validação | Zod (`fastify-type-provider-zod`) | schemas viram tipos TS automaticamente |
 | Autenticação | Cookie de sessão httpOnly (`@fastify/cookie`), tabela `sessions` no Postgres, hash de senha com `argon2` | mais seguro contra XSS que JWT em localStorage; sem lógica de refresh token no frontend |
 | Autorização | Campo `role` no usuário (`USER` / `ADMIN`) | suficiente para moderação, sem RBAC complexo |
-| Mensagens diretas | WebSocket via `@fastify/websocket`, atrelada a um anúncio | usuário optou por tempo real; sem etapa de aprovação prévia (avaliado e recusado conscientemente) |
+| Mensagens diretas | WebSocket via `@fastify/websocket`, atrelada a um anúncio; só quem é dono do anúncio ou já está numa conversa com ele pode enviar (checagem cross-module `pets`+`messaging` em `shared/usecases/send-message.usecase.ts`); registro de quem está conectado é um singleton module-local (`MessagingConnectionRegistry`, fora do padrão de DI do resto do projeto); `readAt` é delivery receipt, não "usuário leu" | usuário optou por tempo real; sem etapa de aprovação prévia (avaliado e recusado conscientemente) — ver skill `messaging` |
 | Fotos | Gateway `createStorageGateway` (`gateways/storage.gateway.service.ts`), escolhe `LocalStorageGateway` (dev) vs `S3StorageGateway` (prod via `@aws-sdk/client-s3`) por `STORAGE_DRIVER` | mantém a app "pronta para AWS" sem acoplar no S3 agora |
 | Cadastro de pet | Fila SQS via `PetsRegistrationQueueGatewayService` (`gateways/pets-registration-queue.gateway.service.ts`) — LocalStack (dev, `SQS_ENDPOINT`) e SQS real (prod) são o mesmo protocolo, só muda o endpoint, então é uma classe única (não a exceção usada em storage); consumidor usa a lib `sqs-consumer` por dentro do gateway (`startConsuming`/`stopConsuming`), sem expor o `SQSClient` cru | evita perder o cadastro se o banco estiver sobrecarregado: a rota enfileira e responde, um consumidor assíncrono (`modules/pets/pets-registration.consumer.ts`, dentro do módulo por conter parsing/validação específica de `pets`) persiste depois via `PetsService.registerListing` — ver skill `queue` |
 | Upload de foto | Validação de tipo/tamanho + geração de thumbnail (`sharp`) | decisão consciente de aceitar a complexidade extra |
@@ -53,6 +53,7 @@ que torna isso um monolito de fato *modular*, não apenas pastas por feature.
   diretamente; usecase que orquestra só o próprio módulo mora dentro dele
   (`modules/<módulo>/<operação>.usecase.ts`); usecase que cruza mais de um módulo mora em
   `apps/api/src/shared/usecases/<operação>.usecase.ts` (ex:
+  `shared/usecases/send-message.usecase.ts`, que cruza `pets` + `messaging`, e
   `shared/usecases/resolve-report.usecase.ts`, que cruza `moderation` + `pets`); cada service só
   chama o repository do próprio módulo; repositório é o único ponto que fala com o Prisma. Ver
   skills `controller` e `usecase` em `.claude/skills/` para o detalhe de cada camada.
