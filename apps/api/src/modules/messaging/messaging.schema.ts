@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-// Shape de uma mensagem como persistida/retornada pelo repository.
 export const messageSchema = z.object({
   id: z.string().uuid(),
   listingId: z.string().uuid(),
@@ -11,10 +10,9 @@ export const messageSchema = z.object({
   readAt: z.date().nullable(),
 });
 
-// Dado que o repository/service precisam para criar uma mensagem — mesmo
-// shape usado pelo usecase cross-module `sendMessageUsecase` (ver
+// Mesmo shape usado pelo usecase cross-module `sendMessageUsecase` (ver
 // shared/usecases), que já resolveu listingId/senderId/receiverId antes de
-// chegar aqui.
+// chegar aqui — por isso não há validação extra desses campos aqui.
 export const createMessageSchema = z.object({
   listingId: z.string().uuid(),
   senderId: z.string().uuid(),
@@ -22,9 +20,8 @@ export const createMessageSchema = z.object({
   body: z.string().min(1).describe('Conteúdo da mensagem'),
 });
 
-// Params da rota WS — quem o remetente (sessão autenticada) está tentando
-// contatar, sobre qual anúncio. O primeiro contato só é aceito se um dos dois
-// lados for o dono do anúncio (ver shared/usecases/send-message.usecase.ts).
+// O primeiro contato só é aceito se um dos dois lados for o dono do anúncio
+// (ver shared/usecases/send-message.usecase.ts).
 export const wsConnectionParamsSchema = z.object({
   listingId: z.string().uuid(),
   receiverId: z.string().uuid(),
