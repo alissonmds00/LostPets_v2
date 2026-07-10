@@ -60,7 +60,7 @@ Each module is internally layered `route → usecase → service → repository`
 
 ### Request flow
 
-`src/server.ts` loads env and calls `buildApp(env)` from `src/app.ts`, which wires Fastify plugins (cors, cookie, rate-limit, zod validators/serializers), the global exception handler, `/health`, and registers each module under `/api/<module>`. All four modules are registered today: `identity` (via `identityPlugin`) and `pets` (via `petsPlugin`) follow the `<módulo>Plugin` naming decided in the `controller` skill; `moderation` (via `moderationModule`) and `messaging` (via `messagingModule`) still use the old `...Module` naming the skill explicitly says not to use — not yet renamed to match.
+`src/server.ts` loads env and calls `buildApp(env)` from `src/app.ts`, which wires Fastify plugins (cors, cookie, rate-limit, zod validators/serializers), the global exception handler, `/health`, and registers each module under `/api/<module>`. All four modules are registered today, all following the `<módulo>Plugin` naming decided in the `controller` skill: `identity` (via `identityPlugin`), `pets` (via `petsPlugin`), `moderation` (via `moderationPlugin`), and `messaging` (via `messagingPlugin`).
 
 ### Exception handling
 

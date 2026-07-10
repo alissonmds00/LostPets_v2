@@ -24,10 +24,10 @@ import { IdentityService } from './modules/identity/identity.service.js';
 import { petsPlugin } from './modules/pets/pets.routes.js';
 import { PetsRepository } from './modules/pets/pets.repository.js';
 import { PetsService } from './modules/pets/pets.service.js';
-import { moderationModule } from './modules/moderation/moderation.routes.js';
+import { moderationPlugin } from './modules/moderation/moderation.routes.js';
 import { ModerationRepository } from './modules/moderation/moderation.repository.js';
 import { ModerationService } from './modules/moderation/moderation.service.js';
-import { messagingModule } from './modules/messaging/messaging.routes.js';
+import { messagingPlugin } from './modules/messaging/messaging.routes.js';
 import { MessagingRepository } from './modules/messaging/messaging.repository.js';
 import { MessagingService } from './modules/messaging/messaging.service.js';
 import { messagingConnectionRegistry } from './modules/messaging/messaging-connection.registry.js';
@@ -212,8 +212,8 @@ export function buildApp(
   // exported service, never straight into its tables.
   app.register(identityPlugin, { prefix: '/api/identity', env });
   app.register(petsPlugin, { prefix: '/api/pets' });
-  app.register(moderationModule, { prefix: '/api/moderation' });
-  app.register(messagingModule, { prefix: '/api/messaging' });
+  app.register(moderationPlugin, { prefix: '/api/moderation' });
+  app.register(messagingPlugin, { prefix: '/api/messaging' });
 
   return app;
 }
