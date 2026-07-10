@@ -34,8 +34,6 @@ import { messagingConnectionRegistry } from './modules/messaging/messaging-conne
 import { createStorageGateway } from './gateways/storage.gateway.service.js';
 import { PetsRegistrationQueueGatewayService } from './gateways/pets-registration-queue.gateway.service.js';
 
-// Module augmentation for the decorators added below — same technique used
-// in infra/auth.ts for requireAuth/requireRole.
 declare module 'fastify' {
   interface FastifyInstance {
     prisma: PrismaClient;
@@ -50,23 +48,21 @@ declare module 'fastify' {
   }
 }
 
-// Access log for every request (method/url/status/duration/request-id), on top
-// of Fastify's built-in "incoming request"/"request completed" hooks. Explicit
-// serializers pin this down to just those fields — Fastify's default req
-// serializer already excludes headers, but this makes it explicit so no one
-// later adds `headers` back and leaks the session cookie into the logs.
+// Serializers explícitos pra esses campos: o padrão do Fastify já exclui
+// headers, mas isso evita que alguém adicione 'headers' de volta e vaze o
+// cookie de sessão no log.
 const requestLogSerializers = {
   req: (req: { method: string; url: string }) => ({ method: req.method, url: req.url }),
   res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
 };
 
-// Test-only escape hatch (see the testing skill's 2026-07-04 revision):
-// production always calls buildApp(env) with no overrides, so the branches
-// below fall through to instantiating the real repository/service. Tests
-// pass a mocked service and/or repository instead, so app.inject() exercises
-// the HTTP contract (validation, status codes, cookies) without touching
-// Postgres. Add a field here per module as more services/repositories exist
-// that a test needs to substitute — today only identity has both.
+// Escape hatch só pra teste (ver skill testing, revisão 2026-07-04): produção
+// sempre chama buildApp(env) sem overrides, então os branches abaixo caem na
+// instanciação do repository/service real. Testes passam um service e/ou
+// repository mockado, pra que app.inject() exercite o contrato HTTP
+// (validação, status codes, cookies) sem tocar no Postgres. Adicione um campo
+// aqui por módulo conforme mais services/repositories precisem ser
+// substituíveis em teste — hoje só identity tem os dois.
 export function buildApp(
   env: Env,
   overrides?: {
@@ -111,8 +107,8 @@ export function buildApp(
   // app.injectWS pra teste e habilita `{ websocket: true }` em rotas).
   app.register(websocket);
 
-  // Swagger UI exposes the full API shape (routes, schemas) and is only useful
-  // for exercising endpoints during development, so it's kept out of production.
+  // Só é útil pra exercitar endpoints durante desenvolvimento, então fica
+  // fora de produção.
   if (env.NODE_ENV !== 'production') {
     app.register(swagger, {
       openapi: {
@@ -125,33 +121,33 @@ export function buildApp(
 
   app.get('/health', async () => ({ status: 'ok' }));
 
-  // Prisma is decorated first, same DI mechanism as every other
-  // service/repository below (see the dependency-injection skill) — it used
-  // to be the one exception, imported as a bare singleton straight into each
-  // repository instead of flowing through app.decorate. The singleton itself
-  // still lives in infra/db/prisma.ts unchanged; only its lifecycle is now
-  // tied to this Fastify instance: decorated once here, injected into every
-  // repository's constructor below, and disconnected via the onClose hook
-  // when the app shuts down (see server.ts for what actually triggers that).
+  // Prisma é decorado primeiro, mesmo mecanismo de DI dos demais
+  // services/repositories abaixo (skill dependency-injection) — antes era a
+  // única exceção, importado como singleton solto direto em cada repository
+  // em vez de passar por app.decorate. O singleton em si continua em
+  // infra/db/prisma.ts sem mudança; só o ciclo de vida agora está atrelado a
+  // esta instância Fastify: decorado aqui, injetado no construtor de cada
+  // repository abaixo, e desconectado via hook onClose no shutdown (ver
+  // server.ts pro que dispara isso de fato).
   app.decorate('prisma', prisma);
   app.addHook('onClose', async (instance) => {
     await instance.prisma.$disconnect();
   });
 
-  // Dependency injection via Fastify's native decorate mechanism (chosen over
-  // @fastify/awilix to avoid introducing a new container/cradle concept when
-  // decorate already solves the coupling problem — see the
-  // dependency-injection skill). Instantiated exactly once here and decorated
-  // onto the root instance, *before* registering any plugin/module that needs
-  // them: decorators added directly on the root instance (not inside a nested
-  // .register() call) are automatically inherited by every child context
-  // registered afterward, no fastify-plugin wrapping needed for this
-  // direction (unlike authPlugin below, whose decorators need to bubble *up*
-  // to the parent instead of down to children).
-  // requireAuth/requireRole (authPlugin below) always read
-  // app.identityRepository directly — even when a test overrides
-  // identityService only, the real repository is still built here so
-  // requireAuth keeps working for any route it guards in that test.
+  // DI via decorate nativo do Fastify (escolhido em vez de @fastify/awilix
+  // pra não introduzir um conceito novo de container/cradle quando decorate
+  // já resolve o acoplamento — skill dependency-injection). Instanciado uma
+  // única vez aqui e decorado na instância raiz *antes* de registrar
+  // qualquer plugin/módulo que precise deles: decorators adicionados
+  // direto na raiz (fora de um .register() aninhado) são herdados
+  // automaticamente por todo contexto filho registrado depois, sem precisar
+  // de fastify-plugin nessa direção (diferente do authPlugin abaixo, cujos
+  // decorators precisam subir *pro* pai em vez de descer pros filhos).
+  // requireAuth/requireRole (authPlugin abaixo) sempre leem
+  // app.identityRepository direto — mesmo quando um teste sobrescreve só
+  // identityService, o repository real continua sendo construído aqui pra
+  // requireAuth continuar funcionando em qualquer rota que ele proteja nesse
+  // teste.
   const identityRepository = overrides?.identityRepository ?? new IdentityRepository(prisma);
   app.decorate('identityRepository', identityRepository);
   app.decorate(
@@ -159,14 +155,12 @@ export function buildApp(
     overrides?.identityService ?? new IdentityService(identityRepository, env.SESSION_TTL_DAYS),
   );
 
-  // Same pattern as identity above: instantiated once here (storage/queue
-  // gateways included — only the service calls a gateway, see the gateway
-  // skill) and decorated onto the root instance before any module that
-  // depends on them is registered. Unlike identity's requireAuth (which
-  // always needs the real identityRepository even when identityService is
-  // mocked), nothing else in the app depends on the real petsRepository when
-  // petsService is overridden in a test, so this is simpler: each override
-  // only affects its own decorator.
+  // Mesmo padrão de identity acima (gateways de storage/queue inclusos — só o
+  // service chama um gateway, ver skill gateway). Diferente do requireAuth de
+  // identity (que sempre precisa do identityRepository real mesmo com
+  // identityService mockado), nada mais no app depende do petsRepository real
+  // quando petsService é sobrescrito em teste, então aqui é mais simples: cada
+  // override afeta só o próprio decorator.
   const petsRepository = overrides?.petsRepository ?? new PetsRepository(prisma);
   app.decorate('petsRepository', petsRepository);
   app.decorate(
@@ -199,17 +193,16 @@ export function buildApp(
       new MessagingService(messagingRepository, messagingConnectionRegistry),
   );
 
-  // Registered at root (not nested inside identityPlugin's own
-  // app.register(...) below) so requireAuth/requireRole are visible to every
-  // module registered as a sibling here — pets/messaging/moderation routes
-  // need them too, not just identity's own routes. See infra/auth.ts for the
-  // Fastify-encapsulation reasoning and why this lives in infra/ rather than
-  // modules/identity despite depending on IdentityRepository.
+  // Registrado na raiz (não aninhado dentro do próprio app.register(...) de
+  // identityPlugin abaixo) pra requireAuth/requireRole ficarem visíveis pra
+  // todo módulo registrado como irmão aqui — pets/messaging/moderation também
+  // precisam deles, não só as rotas de identity. Ver infra/auth.ts pro
+  // raciocínio de encapsulamento do Fastify.
   app.register(authPlugin, { env });
 
-  // Each module owns its own routes/service/repository and only reaches into
-  // its own Prisma models. Cross-module calls go through another module's
-  // exported service, never straight into its tables.
+  // Cada módulo é dono das próprias rotas/service/repository e só acessa os
+  // próprios models do Prisma. Chamada entre módulos passa pelo service
+  // exportado do outro módulo, nunca direto nas tabelas dele.
   app.register(identityPlugin, { prefix: '/api/identity', env });
   app.register(petsPlugin, { prefix: '/api/pets' });
   app.register(moderationPlugin, { prefix: '/api/moderation' });

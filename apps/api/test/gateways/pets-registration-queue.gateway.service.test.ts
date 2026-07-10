@@ -1,10 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Env } from '../../src/infra/config/env.js';
 
-// Gateway test (see the testing/gateway skills): no automated test touches a
-// real external system (LocalStack included) — both the AWS SDK client and
-// sqs-consumer are mocked, so this only verifies the gateway translates
-// correctly between the domain shape and the SQS SDK/sqs-consumer calls.
+// Teste de gateway (skills testing/gateway): nenhum teste automatizado toca
+// um sistema externo real (LocalStack incluso) — tanto o cliente do AWS SDK
+// quanto o sqs-consumer são mockados, então isto só verifica se o gateway
+// traduz corretamente entre a forma de domínio e as chamadas do SDK do
+// SQS/sqs-consumer.
 const sendMock = vi.fn();
 const startMock = vi.fn();
 const stopMock = vi.fn();

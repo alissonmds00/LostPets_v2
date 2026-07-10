@@ -9,31 +9,32 @@ const app = buildApp(env);
 app
   .listen({ port: env.PORT, host: '0.0.0.0' })
   .then(() => {
-    // The pets-registration queue consumer runs as a background sqs-consumer
-    // instance inside this same process (no separate apps/worker — see
-    // ARCHITECTURE.md "Pontos em aberto"), started only after the HTTP
-    // server is confirmed up. Reuses app.petsService (decorated in
-    // buildApp, already wired with repository + storage + queue gateways)
-    // instead of constructing a separate instance — only a fresh
-    // queueGateway is needed here, since the consumer processes messages
-    // directly and PetsService doesn't expose the one it was built with.
+    // O consumer da fila de registro de pets roda como uma instância
+    // sqs-consumer em background dentro deste mesmo processo (sem
+    // apps/worker separado — ver ARCHITECTURE.md "Pontos em aberto"),
+    // iniciado só depois que o servidor HTTP está confirmadamente no ar.
+    // Reaproveita app.petsService (decorado em buildApp, já com repository +
+    // storage + queue gateways) em vez de construir uma instância separada —
+    // só é preciso um queueGateway novo aqui, já que o consumer processa
+    // mensagens direto e PetsService não expõe o que foi usado pra montá-lo.
     const queueGateway = new PetsRegistrationQueueGatewayService(env);
 
     const consumer = startPetsRegistrationConsumer(queueGateway, app.petsService, app.log);
 
-    // AWS ECS/Fargate (see ARCHITECTURE.md) sends SIGTERM to the container
-    // before stopping/replacing it during a deploy; SIGINT covers local
-    // Ctrl+C. Registered here (not at module scope) because the handler
-    // needs `consumer` in closure — it's only available once the consumer
-    // has actually started. Without this, the default Node behavior on
-    // SIGTERM kills the process immediately: in-flight HTTP requests get cut
-    // off, the Postgres connection never closes cleanly, and a queue message
-    // being processed mid-flight can be interrupted uncleanly.
+    // AWS ECS/Fargate (ver ARCHITECTURE.md) manda SIGTERM pro container antes
+    // de parar/substituí-lo durante um deploy; SIGINT cobre Ctrl+C local.
+    // Registrado aqui (não no escopo do módulo) porque o handler precisa de
+    // `consumer` no closure — só disponível depois que o consumer de fato
+    // iniciou. Sem isso, o comportamento padrão do Node em SIGTERM mata o
+    // processo na hora: requisições HTTP em andamento são cortadas, a conexão
+    // com o Postgres nunca fecha direito, e uma mensagem da fila em
+    // processamento pode ser interrompida de forma suja.
     const shutdown = async (signal: NodeJS.Signals) => {
       app.log.info({ signal }, 'Received shutdown signal, closing gracefully');
-      // Stop pulling new messages off the queue first, then let in-flight
-      // work finish: app.close() waits for in-flight requests and triggers
-      // the onClose hook (see app.ts), which disconnects Prisma.
+      // Para de puxar mensagens novas da fila primeiro, depois deixa o
+      // trabalho em andamento terminar: app.close() espera as requisições em
+      // andamento e dispara o hook onClose (ver app.ts), que desconecta o
+      // Prisma.
       consumer.stop();
       await app.close();
       process.exit(0);

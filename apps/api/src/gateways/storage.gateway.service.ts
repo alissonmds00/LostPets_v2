@@ -4,9 +4,8 @@ import { S3StorageGatewayService } from './s3-storage.gateway.service.js';
 
 export type StorageGateway = LocalStorageGatewayService | S3StorageGatewayService;
 
-// Escolhe o gateway concreto por STORAGE_DRIVER — dev usa disco local, prod usa S3.
-// Sem interface declarada: as duas classes só precisam bater a forma usada aqui
-// (save/getUrl/delete), o TypeScript já aceita isso estruturalmente.
+// Sem interface declarada: as duas classes só precisam bater a forma usada
+// aqui (save/getUrl/delete), o TypeScript já aceita isso estruturalmente.
 export function createStorageGateway(env: Env): StorageGateway {
   if (env.STORAGE_DRIVER === 's3') {
     if (!env.S3_BUCKET || !env.S3_REGION) {
