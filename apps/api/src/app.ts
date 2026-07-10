@@ -4,6 +4,7 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import websocket from '@fastify/websocket';
 import Fastify from 'fastify';
 import {
   jsonSchemaTransform,
@@ -21,6 +22,10 @@ import { IdentityService } from './modules/identity/identity.service.js';
 import { petsModule } from './modules/pets/pets.routes.js';
 import { PetsRepository } from './modules/pets/pets.repository.js';
 import { PetsService } from './modules/pets/pets.service.js';
+import { messagingModule } from './modules/messaging/messaging.routes.js';
+import { MessagingRepository } from './modules/messaging/messaging.repository.js';
+import { MessagingService } from './modules/messaging/messaging.service.js';
+import { messagingConnectionRegistry } from './modules/messaging/messaging-connection.registry.js';
 import { createStorageGateway } from './gateways/storage.gateway.service.js';
 import { PetsRegistrationQueueGatewayService } from './gateways/pets-registration-queue.gateway.service.js';
 
@@ -32,6 +37,8 @@ declare module 'fastify' {
     identityService: IdentityService;
     petsRepository: PetsRepository;
     petsService: PetsService;
+    messagingRepository: MessagingRepository;
+    messagingService: MessagingService;
   }
 }
 
@@ -59,6 +66,8 @@ export function buildApp(
     identityRepository?: IdentityRepository;
     petsService?: PetsService;
     petsRepository?: PetsRepository;
+    messagingService?: MessagingService;
+    messagingRepository?: MessagingRepository;
   },
 ) {
   const app = Fastify({
@@ -88,6 +97,9 @@ export function buildApp(
   app.register(rateLimit, { global: false });
   // Necessário pra POST /api/pets aceitar upload de foto via multipart/form-data.
   app.register(multipart);
+  // Necessário pra rota WS de messaging (@fastify/websocket decora
+  // app.injectWS pra teste e habilita `{ websocket: true }` em rotas).
+  app.register(websocket);
 
   // Swagger UI exposes the full API shape (routes, schemas) and is only useful
   // for exercising endpoints during development, so it's kept out of production.
@@ -137,7 +149,23 @@ export function buildApp(
   app.decorate(
     'petsService',
     overrides?.petsService ??
-      new PetsService(petsRepository, createStorageGateway(env), new PetsRegistrationQueueGatewayService(env)),
+      new PetsService(
+        petsRepository,
+        createStorageGateway(env),
+        new PetsRegistrationQueueGatewayService(env),
+      ),
+  );
+
+  // Mesmo padrão acima. `messagingConnectionRegistry` é o singleton
+  // module-local (não decorado em `app`, ver messaging-connection.registry.ts)
+  // injetado no construtor do service real — não passa pelas overrides de
+  // teste porque é um Map em memória, não uma infra externa a mockar.
+  const messagingRepository = overrides?.messagingRepository ?? new MessagingRepository();
+  app.decorate('messagingRepository', messagingRepository);
+  app.decorate(
+    'messagingService',
+    overrides?.messagingService ??
+      new MessagingService(messagingRepository, messagingConnectionRegistry),
   );
 
   // Registered at root (not nested inside identityModule's own
@@ -153,8 +181,8 @@ export function buildApp(
   // exported service, never straight into its tables.
   app.register(identityModule, { prefix: '/api/identity', env });
   app.register(petsModule, { prefix: '/api/pets' });
-  // messaging and moderation modules are registered here as they're built —
-  // see PLAN.md for build order and scope.
+  app.register(messagingModule, { prefix: '/api/messaging' });
+  // moderation module is registered here as it's built — see PLAN.md.
 
   return app;
 }

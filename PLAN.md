@@ -37,11 +37,11 @@ Roteiro para retomar a implementação em uma sessão futura. Ver [ARCHITECTURE.
 
 ## Fase 3 — `messaging`
 
-- [ ] Modelar `Message` (`senderId`, `receiverId`, `listingId`, `body`, `createdAt`, `readAt`)
-- [ ] Rota WebSocket (`@fastify/websocket`) autenticada pela mesma sessão de cookie; validar que a conexão pertence a um usuário logado antes de aceitar
-- [ ] Persistir cada mensagem recebida; retransmitir para o destinatário se estiver conectado
-- [ ] `GET /api/messaging/:listingId` — histórico paginado de mensagens (REST, para carregar o histórico ao abrir o chat)
-- [ ] Testes: handshake de WS autenticado vs. não autenticado, persistência de mensagem
+- [x] Modelar `Message` (`senderId`, `receiverId`, `listingId`, `body`, `createdAt`, `readAt`)
+- [x] Rota WebSocket (`@fastify/websocket`) autenticada pela mesma sessão de cookie (`requireAuth` como preHandler, roda antes do upgrade — sessão inválida recebe 401 sem abrir o socket)
+- [x] Persistir cada mensagem recebida; retransmitir para o destinatário se estiver conectado (`MessagingConnectionRegistry`, singleton module-local); `readAt` é delivery receipt, setado quando a entrega ao socket aberto do destinatário tem sucesso — ver skill `messaging`
+- [x] `GET /api/messaging/:listingId` — histórico paginado, restrito às mensagens em que o requisitante é remetente ou destinatário (nunca todas as mensagens do anúncio — decidido com o usuário em 2026-07-09, ver skill `messaging`)
+- [x] Testes: handshake de WS autenticado vs. não autenticado (`app.injectWS`), persistência/entrega de mensagem, checagem cross-module dono-do-anúncio (`shared/usecases/send-message.usecase.ts`), verificação manual do fluxo completo via WS real contra Postgres real
 
 ## Fase 4 — `moderation`
 
