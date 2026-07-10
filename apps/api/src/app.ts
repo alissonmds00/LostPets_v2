@@ -16,10 +16,10 @@ import { randomUUID } from 'node:crypto';
 import type { Env } from './infra/config/env.js';
 import { formatErrorResponse } from './infra/exception-handler.js';
 import { authPlugin } from './infra/auth.js';
-import { identityModule } from './modules/identity/identity.routes.js';
+import { identityPlugin } from './modules/identity/identity.routes.js';
 import { IdentityRepository } from './modules/identity/identity.repository.js';
 import { IdentityService } from './modules/identity/identity.service.js';
-import { petsModule } from './modules/pets/pets.routes.js';
+import { petsPlugin } from './modules/pets/pets.routes.js';
 import { PetsRepository } from './modules/pets/pets.repository.js';
 import { PetsService } from './modules/pets/pets.service.js';
 import { moderationModule } from './modules/moderation/moderation.routes.js';
@@ -183,7 +183,7 @@ export function buildApp(
       new MessagingService(messagingRepository, messagingConnectionRegistry),
   );
 
-  // Registered at root (not nested inside identityModule's own
+  // Registered at root (not nested inside identityPlugin's own
   // app.register(...) below) so requireAuth/requireRole are visible to every
   // module registered as a sibling here — pets/messaging/moderation routes
   // need them too, not just identity's own routes. See infra/auth.ts for the
@@ -194,8 +194,8 @@ export function buildApp(
   // Each module owns its own routes/service/repository and only reaches into
   // its own Prisma models. Cross-module calls go through another module's
   // exported service, never straight into its tables.
-  app.register(identityModule, { prefix: '/api/identity', env });
-  app.register(petsModule, { prefix: '/api/pets' });
+  app.register(identityPlugin, { prefix: '/api/identity', env });
+  app.register(petsPlugin, { prefix: '/api/pets' });
   app.register(moderationModule, { prefix: '/api/moderation' });
   app.register(messagingModule, { prefix: '/api/messaging' });
 

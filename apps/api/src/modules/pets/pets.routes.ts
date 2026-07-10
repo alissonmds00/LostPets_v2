@@ -29,7 +29,7 @@ const TEXT_FIELDS = [
   'city',
 ] as const;
 
-export async function petsModule(app: FastifyInstance, _opts: FastifyPluginOptions): Promise<void> {
+export async function petsPlugin(app: FastifyInstance, _opts: FastifyPluginOptions): Promise<void> {
   app.withTypeProvider<ZodTypeProvider>().post(
     '/',
     {
