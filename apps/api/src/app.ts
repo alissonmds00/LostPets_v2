@@ -22,6 +22,9 @@ import { IdentityService } from './modules/identity/identity.service.js';
 import { petsModule } from './modules/pets/pets.routes.js';
 import { PetsRepository } from './modules/pets/pets.repository.js';
 import { PetsService } from './modules/pets/pets.service.js';
+import { moderationModule } from './modules/moderation/moderation.routes.js';
+import { ModerationRepository } from './modules/moderation/moderation.repository.js';
+import { ModerationService } from './modules/moderation/moderation.service.js';
 import { messagingModule } from './modules/messaging/messaging.routes.js';
 import { MessagingRepository } from './modules/messaging/messaging.repository.js';
 import { MessagingService } from './modules/messaging/messaging.service.js';
@@ -37,6 +40,8 @@ declare module 'fastify' {
     identityService: IdentityService;
     petsRepository: PetsRepository;
     petsService: PetsService;
+    moderationRepository: ModerationRepository;
+    moderationService: ModerationService;
     messagingRepository: MessagingRepository;
     messagingService: MessagingService;
   }
@@ -66,6 +71,8 @@ export function buildApp(
     identityRepository?: IdentityRepository;
     petsService?: PetsService;
     petsRepository?: PetsRepository;
+    moderationService?: ModerationService;
+    moderationRepository?: ModerationRepository;
     messagingService?: MessagingService;
     messagingRepository?: MessagingRepository;
   },
@@ -156,6 +163,14 @@ export function buildApp(
       ),
   );
 
+  // Mesmo padrão acima.
+  const moderationRepository = overrides?.moderationRepository ?? new ModerationRepository();
+  app.decorate('moderationRepository', moderationRepository);
+  app.decorate(
+    'moderationService',
+    overrides?.moderationService ?? new ModerationService(moderationRepository),
+  );
+
   // Mesmo padrão acima. `messagingConnectionRegistry` é o singleton
   // module-local (não decorado em `app`, ver messaging-connection.registry.ts)
   // injetado no construtor do service real — não passa pelas overrides de
@@ -181,8 +196,8 @@ export function buildApp(
   // exported service, never straight into its tables.
   app.register(identityModule, { prefix: '/api/identity', env });
   app.register(petsModule, { prefix: '/api/pets' });
+  app.register(moderationModule, { prefix: '/api/moderation' });
   app.register(messagingModule, { prefix: '/api/messaging' });
-  // moderation module is registered here as it's built — see PLAN.md.
 
   return app;
 }

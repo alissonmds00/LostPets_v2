@@ -21,6 +21,7 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
 | Upload de foto | Validação de tipo/tamanho + geração de thumbnail (`sharp`) | decisão consciente de aceitar a complexidade extra |
 | Geolocalização | lat/lng + fórmula de distância direto na query SQL, sem PostGIS | mantido simples deliberadamente |
 | Exclusão | Soft delete (`deletedAt`) em usuários e anúncios | denúncias/moderação precisam referenciar anúncios mesmo depois de removidos |
+| Moderação | `Report` com 3 status (`PENDING`/`REVIEWED`/`DISMISSED`); resolver usa um único campo `outcome` (`DISMISSED`/`REVIEWED_KEPT`/`REVIEWED_REMOVED`), nunca dois campos separados; `REVIEWED_REMOVED` reusa `PetsService.deleteListing` (o `DELETE /api/pets/:id` já existente) via `shared/usecases/resolve-report.usecase.ts`, sem um mecanismo de remoção próprio da moderação | evita duplicar a semântica de "remover anúncio" em dois lugares; `requireRole('ADMIN')` na rota de resolve já garante que a checagem dono-ou-admin de `deleteListing` sempre passa — ver skill `moderation` |
 | Paginação | offset/limit | mais simples de entender e implementar que cursor-based |
 | Testes | Vitest, unit + integração contra Postgres real via Docker | usuário quer aprender a testar, não só fazer funcionar |
 | Monorepo | npm workspaces (`apps/api`, `apps/web`) | usuário escolheu; frontend (`apps/web`) ainda não tem framework definido |
@@ -52,9 +53,10 @@ que torna isso um monolito de fato *modular*, não apenas pastas por feature.
   diretamente; usecase que orquestra só o próprio módulo mora dentro dele
   (`modules/<módulo>/<operação>.usecase.ts`); usecase que cruza mais de um módulo mora em
   `apps/api/src/shared/usecases/<operação>.usecase.ts` (ex:
-  `shared/usecases/send-message.usecase.ts`, que cruza `pets` + `messaging`); cada service só chama
-  o repository do próprio módulo; repositório é o único ponto que fala com o Prisma. Ver skills
-  `controller` e `usecase` em `.claude/skills/` para o detalhe de cada camada.
+  `shared/usecases/send-message.usecase.ts`, que cruza `pets` + `messaging`, e
+  `shared/usecases/resolve-report.usecase.ts`, que cruza `moderation` + `pets`); cada service só
+  chama o repository do próprio módulo; repositório é o único ponto que fala com o Prisma. Ver
+  skills `controller` e `usecase` em `.claude/skills/` para o detalhe de cada camada.
 - CORS com `credentials: true` e origem explícita (não `*`), obrigatório por causa da autenticação via cookie.
 - Env vars validadas com Zod na subida da app (`infra/config/env.ts`) — falha rápido e claro em vez de erro tardio em runtime.
 - `/health` sem tocar no banco, para health check de orquestração (Docker/ECS).

@@ -28,6 +28,7 @@ model User {
 
   sessions    Session[]
   petListings PetListing[]
+  reports     Report[]
 
   // Duas relações nomeadas pro mesmo model (Message) — Prisma exige um nome
   // explícito quando há mais de uma FK entre os mesmos dois models, senão não
@@ -83,6 +84,7 @@ model PetListing {
 
   photos   PetPhoto[]
   messages Message[]
+  reports  Report[]
 
   @@index([ownerId])
   @@map("pet_listings")
@@ -128,6 +130,26 @@ model Message {
 }
 
 // ---------------------------------------------------------------------------
-// moderation module adds its own models here as it's built (phase 4 in
-// PLAN.md). Each module's repository only ever queries the models it owns.
+// moderation module (phase 4 — see PLAN.md)
 // ---------------------------------------------------------------------------
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+}
+
+model Report {
+  id         String       @id @default(uuid())
+  reporterId String
+  reporter   User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  listingId  String
+  listing    PetListing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reason     String
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+
+  @@index([reporterId])
+  @@index([listingId])
+  @@map("reports")
+}
