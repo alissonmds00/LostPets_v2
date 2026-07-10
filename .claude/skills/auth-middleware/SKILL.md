@@ -26,8 +26,8 @@ description: >
   **módulo de domínio** acessar a tabela de outro módulo direto; não proíbe infraestrutura
   compartilhada de consumir o repositório público de um módulo específico.
 - Implementado como plugin do Fastify, registrado na raiz (`app.ts`), **não** aninhado dentro do
-  `app.register(identityModule, ...)` — encapsulamento de plugin do Fastify faria os decorators
-  (`app.decorate('requireAuth', ...)`) ficarem visíveis só dentro do próprio `identityModule`,
+  `app.register(identityPlugin, ...)` — encapsulamento de plugin do Fastify faria os decorators
+  (`app.decorate('requireAuth', ...)`) ficarem visíveis só dentro do próprio `identityPlugin`,
   invisíveis pra `pets`/`messaging`/`moderation` registrados como irmãos.
 - Envolvido com `fastify-plugin` (`fp`) — isso reforça o registro na raiz mesmo que o arquivo
   venha a ser importado/registrado de outro lugar no futuro: `fp` tira o plugin do encapsulamento
