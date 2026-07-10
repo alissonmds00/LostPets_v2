@@ -11,7 +11,7 @@ import {
   wsIncomingMessageBodySchema,
 } from './messaging.schema.js';
 
-export async function messagingModule(
+export async function messagingPlugin(
   app: FastifyInstance,
   _opts: FastifyPluginOptions,
 ): Promise<void> {

@@ -11,7 +11,7 @@ import {
   resolveReportParamsSchema,
 } from './moderation.schema.js';
 
-export async function moderationModule(
+export async function moderationPlugin(
   app: FastifyInstance,
   _opts: FastifyPluginOptions,
 ): Promise<void> {
