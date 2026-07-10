@@ -13,11 +13,8 @@ export class MessagingService {
     private readonly connectionRegistry: MessagingConnectionRegistry,
   ) {}
 
-  // Persiste a mensagem e tenta entregar em tempo real a cada socket aberto
-  // do destinatário (múltiplas abas/dispositivos); se algum socket recebeu,
-  // marca a mensagem como entregue (`readAt` = delivery receipt, ver
-  // schema.prisma). Destinatário offline: mensagem fica só persistida,
-  // `readAt` continua null.
+  // `readAt` aqui é delivery receipt (ver MessagingRepository.markDelivered),
+  // não confirmação de que o destinatário abriu a conversa.
   async sendMessage(input: CreateMessageDto): Promise<MessageDto> {
     const message = await this.repository.create(input);
     const receiverSockets = this.connectionRegistry.getSockets(input.receiverId);
