@@ -2,18 +2,13 @@ import type { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockDeep, mockReset, type DeepMockProxy } from 'vitest-mock-extended';
-import { prisma } from '../../../src/infra/db/prisma.js';
 import { PetsRepository } from '../../../src/modules/pets/pets.repository.js';
 import { NotFoundError } from '../../../src/infra/errors/app-error.js';
 
-vi.mock('../../../src/infra/db/prisma.js', () => ({
-  prisma: mockDeep<PrismaClient>(),
-}));
-
-const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
+const prismaMock = mockDeep<PrismaClient>();
 
 describe('PetsRepository', () => {
-  const repository = new PetsRepository();
+  const repository = new PetsRepository(prismaMock);
   const ownerId = randomUUID();
 
   beforeEach(() => {

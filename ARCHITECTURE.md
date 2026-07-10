@@ -65,6 +65,7 @@ que torna isso um monolito de fato *modular*, não apenas pastas por feature.
   sessão — ver skill `logging`.
 - ESLint (flat config) + Prettier na raiz do monorepo.
 - Convenção de migration do Prisma: `prisma migrate dev` local, `prisma migrate deploy` em CI/prod.
+- Encerramento gracioso em `SIGTERM`/`SIGINT` (`server.ts`): para o consumidor da fila, fecha o app (aguardando requests em andamento) e desconecta o Prisma via o hook `onClose`.
 
 ## Pontos em aberto (deferidos conscientemente)
 

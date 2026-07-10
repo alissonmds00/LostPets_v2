@@ -1,5 +1,4 @@
-import { Prisma } from '@prisma/client';
-import { prisma } from '../../infra/db/prisma.js';
+import { Prisma, type PrismaClient } from '@prisma/client';
 import { NotFoundError } from '../../infra/errors/app-error.js';
 import type {
   ListPetsQueryDto,
@@ -15,13 +14,15 @@ import type {
 type PetListingRadiusRow = Omit<PetListingDto, 'photos'> & { distance: number };
 
 export class PetsRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
   // Persiste o `PetListing` e suas `PetPhoto[]` numa única transação — é o
   // método que o service (e, por trás dele, o futuro worker consumidor da
   // fila de cadastro) chama para persistir de fato um anúncio já validado,
   // com as fotos já processadas (upload/thumbnail/storage feitos antes
   // disso, fora do escopo desta task).
   async create(data: CreatePetListingDto): Promise<PetListingDto> {
-    return prisma.$transaction((tx) =>
+    return this.prisma.$transaction((tx) =>
       tx.petListing.create({
         data: {
           type: data.type,
@@ -70,14 +71,14 @@ export class PetsRepository {
     };
 
     const [data, total] = await Promise.all([
-      prisma.petListing.findMany({
+      this.prisma.petListing.findMany({
         where,
         skip: filters.offset,
         take: filters.limit,
         orderBy: { createdAt: 'desc' },
         include: { photos: true },
       }),
-      prisma.petListing.count({ where }),
+      this.prisma.petListing.count({ where }),
     ]);
 
     return { data, total };
@@ -114,7 +115,7 @@ export class PetsRepository {
     // acima de 1 (o que faria `acos` retornar NaN) pra pontos muito próximos.
     const distanceSql = Prisma.sql`(6371 * acos(least(1, cos(radians(${lat})) * cos(radians(latitude)) * cos(radians(longitude) - radians(${lng})) + sin(radians(${lat})) * sin(radians(latitude)))))`;
 
-    const rows = await prisma.$queryRaw<PetListingRadiusRow[]>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<PetListingRadiusRow[]>(Prisma.sql`
       SELECT id, type, title, description, species, latitude, longitude, city, status,
         "ownerId", "createdAt", "updatedAt", ${distanceSql} AS distance
       FROM pet_listings
@@ -123,7 +124,7 @@ export class PetsRepository {
       LIMIT ${limit} OFFSET ${offset}
     `);
 
-    const totalRows = await prisma.$queryRaw<{ total: bigint }[]>(Prisma.sql`
+    const totalRows = await this.prisma.$queryRaw<{ total: bigint }[]>(Prisma.sql`
       SELECT COUNT(*)::int AS total
       FROM pet_listings
       WHERE ${whereSql} AND ${distanceSql} <= ${radiusKm}
@@ -136,7 +137,7 @@ export class PetsRepository {
 
     if (rows.length === 0) return { data: [], total: Number(total) };
 
-    const photos = await prisma.petPhoto.findMany({
+    const photos = await this.prisma.petPhoto.findMany({
       where: { listingId: { in: rows.map((row) => row.id) } },
     });
     const photosByListing = new Map<string, PetPhotoDto[]>();
@@ -155,7 +156,7 @@ export class PetsRepository {
   }
 
   async getById(id: string): Promise<PetListingDto> {
-    const listing = await prisma.petListing.findFirst({
+    const listing = await this.prisma.petListing.findFirst({
       where: { id, deletedAt: null },
       include: { photos: true },
     });
@@ -164,7 +165,7 @@ export class PetsRepository {
   }
 
   async update(id: string, data: UpdatePetBodyDto): Promise<PetListingDto> {
-    return prisma.petListing.update({
+    return this.prisma.petListing.update({
       where: { id },
       // Monta o objeto só com as chaves de fato presentes — `data` (vindo de
       // um schema Zod com campos `.optional()`) tipa ausência como `T |
@@ -182,6 +183,6 @@ export class PetsRepository {
   }
 
   async softDelete(id: string): Promise<void> {
-    await prisma.petListing.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.prisma.petListing.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 }

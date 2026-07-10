@@ -1,20 +1,15 @@
 import type { PrismaClient } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mockDeep, mockReset, type DeepMockProxy } from 'vitest-mock-extended';
-import { prisma } from '../../../src/infra/db/prisma.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { mockDeep, mockReset } from 'vitest-mock-extended';
 import { IdentityRepository } from '../../../src/modules/identity/identity.repository.js';
 import { ConflictError } from '../../../src/infra/errors/app-error.js';
 
-vi.mock('../../../src/infra/db/prisma.js', () => ({
-  prisma: mockDeep<PrismaClient>(),
-}));
-
-const prismaMock = prisma as unknown as DeepMockProxy<PrismaClient>;
+const prismaMock = mockDeep<PrismaClient>();
 
 describe('IdentityRepository', () => {
-  const repository = new IdentityRepository();
+  const repository = new IdentityRepository(prismaMock);
   const userId = randomUUID();
   const userEmail = `${randomUUID()}@example.com`;
   const createdAt = new Date();

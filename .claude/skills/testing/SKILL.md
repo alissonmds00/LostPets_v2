@@ -26,11 +26,12 @@ description: >
   implantado, onde a integração real é validada manualmente/exploratoriamente pelo usuário — não
   pela suíte automatizada).
   - **Repository: mocka o `PrismaClient`.** Usa `vitest-mock-extended` (`mockDeep<PrismaClient>()`)
-    substituindo o singleton exportado por `infra/db/prisma.ts` via `vi.mock(...)` — o teste
-    continua chamando o método do repository de verdade (`repository.findByEmail(...)`), só o que
-    está por baixo (`prisma.user.findUnique`) é um mock configurável (`mockResolvedValue`/
-    `mockRejectedValue`), sem precisar de constructor injection no repository (a classe continua
-    importando o singleton normalmente em produção).
+    injetado direto no construtor do repository (`new XRepository(prismaMock)` — revisado em
+    2026-07-10: o Prisma passou a ser injetado via construtor, como qualquer outro colaborador,
+    ver skill `dependency-injection`; antes disso o mock substituía o singleton do módulo via
+    `vi.mock(...)`) — o teste continua chamando o método do repository de verdade
+    (`repository.findByEmail(...)`), só o que está por baixo (`prisma.user.findUnique`) é um mock
+    configurável (`mockResolvedValue`/`mockRejectedValue`).
   - **Service: mocka o repository**, via o mesmo construtor usado em produção (decisão de
     2026-07-04, mantida). Se o service também chamar um **gateway**, mocka o gateway do mesmo jeito
     (novo nesta revisão) — nenhum colaborador externo ao service (repository ou gateway) é real no
@@ -83,11 +84,12 @@ real sem precisar reescrever a classe pra aceitar o client via construtor.
 ## Como aplicar
 
 Ao implementar uma rota/usecase novo:
-1. Escreva o teste de repository **mockando o `PrismaClient`** (`vi.mock('caminho/pra/infra/db/
-   prisma.js', () => ({ prisma: mockDeep<PrismaClient>() }))`, import do mock via
-   `vitest-mock-extended`) e rode — deve falhar porque o método não existe. Implemente o
-   repository até passar, configurando o mock (`prismaMock.user.create.mockResolvedValue(...)`)
-   pra cada cenário.
+1. Escreva o teste de repository **mockando o `PrismaClient` injetado no construtor do
+   repository** (`mockDeep<PrismaClient>()`, passado direto pra `new XRepository(prismaMock)`) —
+   sem precisar de `vi.mock(...)`, já que o repository agora recebe o client via construtor em vez
+   de importar o singleton do módulo (ver skill `dependency-injection`, caso do Prisma) — e rode —
+   deve falhar porque o método não existe. Implemente o repository até passar, configurando o mock
+   (`prismaMock.user.create.mockResolvedValue(...)`) pra cada cenário.
 2. Escreva o teste de service **mockando o repository** (e gateway, se houver) — mesmo construtor
    usado em produção — e rode — deve falhar. Implemente o service até passar. Verifique tanto o
    retorno/erro do service quanto, onde fizer sentido, com quais argumentos os mocks foram
