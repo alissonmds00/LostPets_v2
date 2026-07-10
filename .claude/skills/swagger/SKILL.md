@@ -75,6 +75,19 @@ Ao criar ou revisar uma rota:
 4. Não adicione `example`/`examples` a campo nenhum — não é a convenção decidida agora (ver
    "Alternativas consideradas" acima).
 
+## Rotas multipart (sem `schema.body`)
+
+Uma rota que aceita `multipart/form-data` (ex: `POST /api/pets`, upload de foto) **não** declara
+`schema.body` — Fastify não valida multipart contra um Zod schema do mesmo jeito que valida um body
+JSON, então declarar `body` ali sugeriria falsamente que o validador do Fastify está checando
+aquilo, quando a validação real é manual dentro do handler (`algumSchema.parse(rawBody)`, montado a
+partir das partes lidas de `request.parts()`). Nesse caso, os campos de texto e de arquivo esperados
+são documentados em prosa na própria `description` da rota, listando nome/tipo/obrigatoriedade de
+cada campo de texto (consulte o schema `.omit`/`.extend` correspondente em `<módulo>.schema.ts` para
+descrevê-los com precisão) e mencionando que uma ou mais partes de arquivo são esperadas. `consumes:
+['multipart/form-data']` continua declarado normalmente, e `response` segue obrigatório como em
+qualquer rota.
+
 ## Se algo não estiver coberto aqui
 
 Isso indica uma decisão nova (ex: exemplo literal por campo virou necessário de verdade, autenticar

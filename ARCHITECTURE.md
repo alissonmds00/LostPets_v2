@@ -23,7 +23,7 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
 | Exclusão | Soft delete (`deletedAt`) em usuários e anúncios | denúncias/moderação precisam referenciar anúncios mesmo depois de removidos |
 | Moderação | `Report` com 3 status (`PENDING`/`REVIEWED`/`DISMISSED`); resolver usa um único campo `outcome` (`DISMISSED`/`REVIEWED_KEPT`/`REVIEWED_REMOVED`), nunca dois campos separados; `REVIEWED_REMOVED` reusa `PetsService.deleteListing` (o `DELETE /api/pets/:id` já existente) via `shared/usecases/resolve-report.usecase.ts`, sem um mecanismo de remoção próprio da moderação | evita duplicar a semântica de "remover anúncio" em dois lugares; `requireRole('ADMIN')` na rota de resolve já garante que a checagem dono-ou-admin de `deleteListing` sempre passa — ver skill `moderation` |
 | Paginação | offset/limit | mais simples de entender e implementar que cursor-based |
-| Testes | Vitest, unit + integração contra Postgres real via Docker | usuário quer aprender a testar, não só fazer funcionar |
+| Testes | Vitest; nenhuma camada automatizada toca infra real (repository mocka `PrismaClient`, service mocka repository/gateway, usecase/rota mocka o service); Docker é só para dev local e QA validado manualmente | usuário quer aprender a testar, não só fazer funcionar |
 | Monorepo | npm workspaces (`apps/api`, `apps/web`) | usuário escolheu; frontend (`apps/web`) ainda não tem framework definido |
 | Deploy | Docker + docker-compose em dev; alvo AWS (S3 + provavelmente RDS) mais adiante, sem detalhar serviços ainda | 12-factor: config só via env vars, sem estado em disco fora do que é abstraído pelo storage |
 

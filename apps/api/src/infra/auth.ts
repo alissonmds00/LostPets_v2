@@ -31,7 +31,7 @@ declare module 'fastify' {
 // not owned by the module whose data it happens to query — see the
 // auth-middleware skill for the full reasoning.
 //
-// Registered from app.ts (not nested inside identityModule's own
+// Registered from app.ts (not nested inside identityPlugin's own
 // app.register(...) call) so the decorators it adds land on the root Fastify
 // instance and are visible to every module registered as a sibling. Wrapping
 // with fastify-plugin (`fp`) reinforces that even if this ever gets nested:
