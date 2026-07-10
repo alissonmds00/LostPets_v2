@@ -16,11 +16,11 @@ async function makeJpegBuffer(width = 20, height = 20): Promise<Buffer> {
 }
 
 describe('PetsService', () => {
-  // Repository mocked (see the testing skill, revised 2026-07-04): the
-  // service is tested isolated from Postgres, injecting a fake repository
-  // through the same constructor used in production (see the
-  // dependency-injection skill). Only the repository is mocked — it's the
-  // service's sole collaborator.
+  // Repository mockado (ver skill testing, revisada em 2026-07-04): o
+  // service é testado isolado do Postgres, injetando um repository falso
+  // pelo mesmo constructor usado em produção (ver skill
+  // dependency-injection). Só o repository é mockado — é o único
+  // colaborador do service neste bloco.
   const buildRepositoryMock = (): PetsRepository =>
     ({
       create: vi.fn(),

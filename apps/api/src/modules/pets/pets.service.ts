@@ -33,29 +33,24 @@ const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024;
 const THUMBNAIL_MAX_WIDTH = 800;
 
 export class PetsService {
-  // Repository/gateways injected via constructor — instances built once in
-  // app.ts and decorated onto the root Fastify instance (see the
-  // dependency-injection skill); the service never instantiates its own.
+  // Repository/gateways injetados via constructor — instâncias criadas uma
+  // vez em app.ts e decoradas na instância raiz do Fastify (ver skill
+  // dependency-injection); o service nunca instancia as próprias.
   constructor(
     private readonly repository: PetsRepository,
     private readonly storageGateway: StorageGateway,
     private readonly queueGateway: PetsRegistrationQueueGatewayService,
   ) {}
 
-  // Delegates straight to the repository — this is the method the worker
-  // consumer (separate task) calls after pulling a registration off the
-  // queue, to actually persist the listing. No business rule beyond
-  // persistence here (validation/processing already happened before
-  // enqueueing, in submitListingForRegistration below).
+  // Nenhuma regra de negócio além de persistir: validação/processamento já
+  // aconteceu antes de enfileirar, em submitListingForRegistration abaixo.
   async registerListing(input: CreatePetListingDto): Promise<PetListingDto> {
     return this.repository.create(input);
   }
 
-  // Rota POST /api/pets chama isto através do usecase. Segue o desenho
-  // enqueue-then-persist (ver PLAN.md fase 2): valida e processa as fotos,
-  // monta o CreatePetListingDto completo, e publica na fila — nunca chama o
-  // repository (quem persiste de fato é registerListing, chamado pelo
-  // worker/poller consumidor da fila, tarefa separada).
+  // Segue o desenho enqueue-then-persist (ver PLAN.md fase 2): nunca chama o
+  // repository diretamente — quem persiste de fato é registerListing,
+  // chamado pelo worker/poller consumidor da fila (tarefa separada).
   async submitListingForRegistration(input: SubmitListingForRegistrationInputDto): Promise<void> {
     const { photos: rawPhotos, ...listingInput } = input;
 
@@ -82,21 +77,19 @@ export class PetsService {
     await this.queueGateway.enqueue(JSON.stringify(createPetListingDto));
   }
 
-  // GET /api/pets — sem regra de negócio além de delegar ao repository e
-  // montar o envelope de paginação (o repository já devolve total/data).
   async listListings(filters: ListPetsQueryDto): Promise<PetListingListDto> {
     const { data, total } = await this.repository.findMany(filters);
     return { data, pagination: { total, offset: filters.offset, limit: filters.limit } };
   }
 
-  // GET /api/pets/:id — repository já lança NotFoundError se não existir ou
-  // estiver soft-deletado, nada a checar aqui.
+  // Repository já lança NotFoundError se não existir ou estiver
+  // soft-deletado, nada a checar aqui.
   async getListing(id: string): Promise<PetListingDto> {
     return this.repository.getById(id);
   }
 
-  // PATCH /api/pets/:id — só o dono pode editar (nem admin, diferente de
-  // delete: editar o texto de um anúncio alheio não é uma ação de moderação).
+  // Só o dono pode editar (nem admin, diferente de delete: editar o texto de
+  // um anúncio alheio não é uma ação de moderação).
   async updateListing(input: UpdatePetListingInputDto): Promise<PetListingDto> {
     const { id, requesterId, title, description, species, status } = input;
     const listing = await this.repository.getById(id);
@@ -104,10 +97,10 @@ export class PetsService {
     return this.repository.update(id, { title, description, species, status });
   }
 
-  // DELETE /api/pets/:id — dono OU admin (admin cobre o caso de moderação
-  // remover um anúncio de outra pessoa). Soft delete via `deletedAt`; as
-  // fotos permanecem no storage (decisão do usuário — preserva evidência
-  // pra revisão de moderação de um anúncio já removido).
+  // Dono OU admin (admin cobre o caso de moderação remover um anúncio de
+  // outra pessoa). Soft delete via `deletedAt`; as fotos permanecem no
+  // storage (decisão do usuário — preserva evidência pra revisão de
+  // moderação de um anúncio já removido).
   async deleteListing(input: DeletePetListingInputDto): Promise<void> {
     const { id, requesterId, requesterRole } = input;
     const listing = await this.repository.getById(id);

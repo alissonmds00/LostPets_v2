@@ -41,10 +41,10 @@ function buildMultipartPayload(fields: Record<string, string>, photoBuffer?: Buf
   return form;
 }
 
-// requireAuth (preHandler) needs a real identityRepository-shaped session
-// lookup — same pattern as auth.test.ts — plus a mocked petsService (this
-// route's own collaborator). Neither Postgres nor the storage/queue gateways
-// are touched (see the testing skill's 2026-07-04 revision).
+// requireAuth (preHandler) precisa de uma lookup de sessão com o shape real
+// de identityRepository — mesmo padrão de auth.test.ts — mais um petsService
+// mockado (colaborador da própria rota). Nem Postgres nem os gateways de
+// storage/queue são tocados (ver revisão de 2026-07-04 da skill testing).
 function buildTestApp(petsService: Partial<PetsService>) {
   const sessions = new Map<string, SessionWithUserDto>();
   const identityRepository: Pick<IdentityRepository, 'findValidById'> = {

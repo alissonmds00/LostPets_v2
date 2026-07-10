@@ -16,53 +16,44 @@ export const createPetListingInputSchema = z.object({
   ownerId: z.string().uuid().describe('Id do usuário dono do anúncio'),
 });
 
-// Shape de uma foto já processada (upload/thumbnail/storage feitos), pronta
-// para ser persistida junto do anúncio pelo repository.
 export const petPhotoInputSchema = z.object({
   storageKey: z.string().min(1).describe('Chave/path da foto no storage gateway'),
   url: z.string().min(1).describe('URL pública da foto'),
   order: z.number().int().nonnegative().describe('Ordem de exibição da foto'),
 });
 
-// Foto ainda crua, extraída do multipart pela rota (buffer + content-type),
-// antes de validação/thumbnail/storage — é o que o service de submissão
-// recebe para processar. Não é um schema de wire (nunca trafega como JSON,
-// buffer não é serializável), mas segue a mesma convenção de derivar todo DTO
-// de um schema Zod (ver skill dto), inclusive para shapes internas.
+// Não é um schema de wire (buffer não é serializável, nunca trafega como
+// JSON), mas segue a mesma convenção de derivar todo DTO de um schema Zod
+// mesmo para shapes internas (ver skill dto).
 export const rawPetPhotoUploadSchema = z.object({
   buffer: z.instanceof(Buffer),
   contentType: z.string().min(1),
 });
 
-// Input completo do service PetsService.submitListingForRegistration: os
-// campos de texto já validados (mesmo shape do input de criação, com
-// `ownerId` resolvido da sessão) + as fotos ainda cruas.
+// Reaproveita createPetListingInputSchema via .extend() em vez de duplicar os
+// campos de texto.
 export const submitListingForRegistrationInputSchema = createPetListingInputSchema.extend({
   photos: z.array(rawPetPhotoUploadSchema),
 });
 
-// Dado que o repository recebe para persistir um `PetListing` + suas
-// `PetPhoto[]` numa única transação — é o que o futuro worker consumidor da
-// fila monta depois de processar o upload das fotos.
+// Reaproveita createPetListingInputSchema via .extend(), adicionando as fotos
+// já processadas.
 export const createPetListingSchema = createPetListingInputSchema.extend({
   photos: z.array(petPhotoInputSchema).describe('Fotos já processadas do anúncio'),
 });
 
-// Campos de texto do POST /api/pets — mesmo shape de createPetListingInputSchema
-// sem `ownerId`, já que o dono vem da sessão autenticada (request.user.id),
-// nunca do corpo da requisição.
+// Mesmo shape de createPetListingInputSchema sem ownerId (via .omit()) — o
+// dono vem da sessão autenticada (request.user.id), nunca do corpo da
+// requisição.
 export const submitPetListingBodySchema = createPetListingInputSchema.omit({ ownerId: true });
 
-// Resposta da rota de submissão: o anúncio ainda não foi persistido (desenho
-// enqueue-then-persist, ver PLAN.md fase 2 — quem persiste de fato é o
-// poller/worker consumidor da fila, tarefa separada), então não há um
-// PetListingDto completo pra devolver aqui. Corpo mínimo confirmando que a
+// Enqueue-then-persist (ver PLAN.md fase 2): o anúncio ainda não foi
+// persistido quando essa resposta é enviada — corpo mínimo confirmando que a
 // submissão foi aceita e publicada na fila.
 export const submitPetListingResponseSchema = z.object({
   received: z.boolean(),
 });
 
-// Shape de uma foto como persistida/retornada pelo repository.
 export const petPhotoSchema = z.object({
   id: z.string().uuid(),
   listingId: z.string().uuid(),
@@ -72,7 +63,6 @@ export const petPhotoSchema = z.object({
   createdAt: z.date(),
 });
 
-// Shape seguro de um anúncio para retorno da API — inclui suas fotos.
 export const petListingSchema = z.object({
   id: z.string().uuid(),
   type: PetListingTypeSchema,
@@ -93,13 +83,11 @@ export const petListingSchema = z.object({
 // list/detail/update/delete (PLAN.md fase 2, continuação de submit/registerListing)
 // ---------------------------------------------------------------------------
 
-// Query de GET /api/pets. Paginação offset/limit (default 20, máx 100),
-// filtros por type/species/city, e busca por raio (lat/lng/radiusKm) — os
-// três precisam vir juntos ou nenhum, ver o `.refine` abaixo (decidido com o
-// usuário: uma busca por raio parcial é erro 400, não um filtro ignorado em
-// silêncio). Sem filtro de status explícito, só anúncios ACTIVE voltam —
-// decisão do usuário, combina com o caso de uso público de "ver anúncios
-// abertos"; passar `status` explicitamente busca outro status.
+// lat, lng e radiusKm precisam vir juntos ou nenhum, ver o `.refine` abaixo
+// (decidido com o usuário: busca por raio parcial é erro 400, não um filtro
+// ignorado em silêncio). Sem filtro de status explícito, só anúncios ACTIVE
+// voltam — decisão do usuário, combina com o caso de uso público de "ver
+// anúncios abertos"; passar `status` explicitamente busca outro status.
 export const listPetsQuerySchema = z
   .object({
     type: PetListingTypeSchema.optional().describe('Filtra por tipo do anúncio'),
@@ -146,9 +134,9 @@ export const getPetParamsSchema = z.object({
   id: z.string().uuid(),
 });
 
-// Body de PATCH /api/pets/:id — sem type/latitude/longitude/city: o local e o
-// tipo do anúncio não são editáveis depois de criado (recriar é a operação
-// esperada se algum desses estiver errado), só o texto e o status.
+// Sem type/latitude/longitude/city: local e tipo do anúncio não são
+// editáveis depois de criado (recriar é a operação esperada se algum desses
+// estiver errado) — só texto e status.
 export const updatePetBodySchema = z.object({
   title: z.string().min(1).optional().describe('Novo título do anúncio'),
   description: z.string().min(1).optional().describe('Nova descrição do anúncio'),
@@ -156,16 +144,14 @@ export const updatePetBodySchema = z.object({
   status: PetListingStatusSchema.optional().describe('Novo status do anúncio'),
 });
 
-// Input completo do service PetsService.updateListing — body validado +
-// quem está pedindo a alteração (pra checar posse) — ver skill dto: até
-// shapes internas derivam de um schema Zod.
+// Estende updatePetBodySchema com requesterId/requesterRole para checar posse
+// (ver skill dto: até shapes internas derivam de um schema Zod).
 export const updatePetListingInputSchema = updatePetBodySchema.extend({
   id: z.string().uuid(),
   requesterId: z.string().uuid(),
   requesterRole: RoleSchema,
 });
 
-// Input completo do service PetsService.deleteListing — mesmo raciocínio.
 export const deletePetListingInputSchema = z.object({
   id: z.string().uuid(),
   requesterId: z.string().uuid(),

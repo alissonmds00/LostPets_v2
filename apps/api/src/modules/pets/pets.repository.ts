@@ -16,11 +16,9 @@ type PetListingRadiusRow = Omit<PetListingDto, 'photos'> & { distance: number };
 export class PetsRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  // Persiste o `PetListing` e suas `PetPhoto[]` numa única transação — é o
-  // método que o service (e, por trás dele, o futuro worker consumidor da
-  // fila de cadastro) chama para persistir de fato um anúncio já validado,
-  // com as fotos já processadas (upload/thumbnail/storage feitos antes
-  // disso, fora do escopo desta task).
+  // Persiste PetListing + PetPhoto[] numa única transação — as fotos chegam
+  // já processadas (upload/thumbnail/storage feitos antes, fora do escopo
+  // deste método).
   async create(data: CreatePetListingDto): Promise<PetListingDto> {
     return this.prisma.$transaction((tx) =>
       tx.petListing.create({
@@ -46,11 +44,10 @@ export class PetsRepository {
     );
   }
 
-  // GET /api/pets. Sem busca por raio, o Prisma query builder já cobre tudo
-  // (where/skip/take); com raio, delega pra findManyByRadius — a fórmula de
-  // distância não é expressável no query builder, então essa é a única query
-  // raw deste repository (ver a própria findManyByRadius para o porquê disso
-  // ser seguro contra SQL injection).
+  // Sem busca por raio, o Prisma query builder cobre tudo; com raio, delega
+  // pra findManyByRadius — a fórmula de distância não é expressável no query
+  // builder, então essa é a única query raw deste repository (ver
+  // findManyByRadius para o porquê disso ser seguro contra SQL injection).
   async findMany(filters: ListPetsQueryDto): Promise<{ data: PetListingDto[]; total: number }> {
     const { lat, lng, radiusKm } = filters;
     if (lat !== undefined && lng !== undefined && radiusKm !== undefined) {
@@ -84,14 +81,13 @@ export class PetsRepository {
     return { data, total };
   }
 
-  // Busca por raio: fórmula de Haversine em SQL bruto (`Prisma.sql`), porque
-  // distância geográfica não é expressável no query builder do Prisma — a
-  // única query raw deste repository. Nomes de coluna e a fórmula em si ficam
-  // fixos no template (nunca interpolados como valor); só lat/lng/radiusKm e
-  // os valores de filtro entram via placeholder parametrizado do
-  // `Prisma.sql`, o que evita SQL injection. `"deletedAt" IS NULL` é
-  // reaplicado manualmente aqui porque SQL bruto não herda o filtro do query
-  // builder (diferente de findManyByFilters acima).
+  // Fórmula de Haversine em SQL bruto (`Prisma.sql`) — a única query raw
+  // deste repository (ver findMany). Nomes de coluna e a fórmula ficam fixos
+  // no template (nunca interpolados como valor); só lat/lng/radiusKm e os
+  // valores de filtro entram via placeholder parametrizado do `Prisma.sql`,
+  // o que evita SQL injection. `"deletedAt" IS NULL` é reaplicado
+  // manualmente aqui porque SQL bruto não herda o filtro do query builder
+  // (diferente de findManyByFilters acima).
   private async findManyByRadius(
     filters: Omit<ListPetsQueryDto, 'lat' | 'lng' | 'radiusKm'> & {
       lat: number;
