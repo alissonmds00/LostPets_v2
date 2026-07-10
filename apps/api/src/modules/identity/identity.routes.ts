@@ -14,9 +14,6 @@ import {
   userResponseSchema,
 } from './identity.schema.js';
 
-// Session infra (password hashing, session repository, requireAuth/requireRole
-// decorators — see auth.ts) is already built. register/login/logout/me are
-// all in place now, see PLAN.md phase 1.
 export async function identityPlugin(
   app: FastifyInstance,
   opts: FastifyPluginOptions & { env: Env },
@@ -27,10 +24,10 @@ export async function identityPlugin(
   app.withTypeProvider<ZodTypeProvider>().post(
     '/register',
     {
-      // Dedicated per-route limit on top of the global rate-limit plugin
-      // (registered with `global: false` in app.ts) — registration is a
-      // sensitive, abuse-prone endpoint (account/email enumeration, spam
-      // signups), so it gets a tighter budget than routes in general.
+      // Limite dedicado além do rate-limit global (registrado com
+      // `global: false` em app.ts) — registro é um endpoint sensível e
+      // sujeito a abuso (enumeração de e-mail, spam de cadastro), então tem
+      // um orçamento mais apertado que rotas em geral.
       config: {
         rateLimit: {
           max: 5,
@@ -55,8 +52,8 @@ export async function identityPlugin(
   app.withTypeProvider<ZodTypeProvider>().post(
     '/login',
     {
-      // Dedicated rate limit on top of the global one in app.ts — login is a
-      // credential-guessing target, so it gets a tighter per-route limit.
+      // Limite dedicado além do global em app.ts — login é alvo de tentativa
+      // de adivinhação de credenciais, então tem um limite mais apertado.
       config: {
         rateLimit: {
           max: 10,
@@ -75,9 +72,9 @@ export async function identityPlugin(
     async (request, reply) => {
       const result = await loginUsecase(app.identityService, request.body);
 
-      // Matches how requireAuth unsigns this same cookie in infra/auth.ts:
-      // signed, httpOnly, and scoped to the whole app so every module's
-      // routes can read it.
+      // Precisa bater com como requireAuth desassina esse mesmo cookie em
+      // infra/auth.ts: assinado, httpOnly e escopado pro app inteiro pra
+      // qualquer rota de qualquer módulo conseguir lê-lo.
       reply.cookie(cookieName, result.session.id, {
         signed: true,
         httpOnly: true,
@@ -94,9 +91,9 @@ export async function identityPlugin(
   app.withTypeProvider<ZodTypeProvider>().post(
     '/logout',
     {
-      // Requires a valid session (see the auth-middleware skill) — logout
-      // needs `request.sessionId`, attached by requireAuth alongside
-      // `request.user`, to know exactly which session row to delete.
+      // Exige sessão válida (skill auth-middleware) — logout precisa de
+      // `request.sessionId`, anexado por requireAuth, pra saber qual sessão
+      // deletar.
       preHandler: (request, reply) => app.requireAuth(request, reply),
       schema: {
         summary: 'Encerra a sessão do usuário autenticado',
@@ -107,10 +104,9 @@ export async function identityPlugin(
       },
     },
     async (request, reply) => {
-      // request.sessionId is always set here: requireAuth (preHandler above)
-      // throws UnauthorizedError before the handler runs if it couldn't
-      // resolve a valid session, so this route body only ever executes with
-      // a session id already attached.
+      // request.sessionId sempre está setado aqui: requireAuth lança
+      // UnauthorizedError antes do handler rodar se não resolver uma sessão
+      // válida.
       await logoutUsecase(app.identityService, request.sessionId!);
 
       reply.clearCookie(cookieName, { path: '/' });
@@ -121,9 +117,9 @@ export async function identityPlugin(
   app.withTypeProvider<ZodTypeProvider>().get(
     '/me',
     {
-      // requireAuth already throws UnauthorizedError (401) itself when the
-      // cookie is missing/invalid or the session doesn't exist/is expired —
-      // this route doesn't re-check that, see the auth-middleware skill.
+      // requireAuth já lança UnauthorizedError (401) quando o cookie está
+      // ausente/inválido ou a sessão não existe/expirou — esta rota não
+      // reverifica isso (skill auth-middleware).
       preHandler: app.requireAuth,
       schema: {
         summary: 'Retorna o usuário autenticado',
@@ -134,8 +130,8 @@ export async function identityPlugin(
       },
     },
     async (request, reply) => {
-      // request.user is guaranteed set here: requireAuth ran as preHandler
-      // and would have thrown before reaching this handler otherwise.
+      // request.user está garantidamente setado aqui: requireAuth rodou como
+      // preHandler e teria lançado erro antes de chegar neste handler.
       const user = await getMeUsecase(request.user!);
       reply.send(user);
     },

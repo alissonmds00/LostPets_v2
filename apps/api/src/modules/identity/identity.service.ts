@@ -9,9 +9,8 @@ import type {
 } from './identity.dto.js';
 
 export class IdentityService {
-  // Repository injected via constructor — the single instance is built once
-  // in app.ts and decorated onto the root Fastify instance (see the
-  // dependency-injection skill); the service never instantiates its own.
+  // Repository injetado via construtor — a instância única é montada uma vez
+  // em app.ts (skill dependency-injection); o service nunca instancia a sua.
   constructor(
     private readonly repository: IdentityRepository,
     private readonly sessionTtlDays: number,
@@ -29,11 +28,11 @@ export class IdentityService {
   async login(credentials: LoginBodyDto): Promise<LoginResultDto> {
     const user = await this.repository.findByEmail(credentials.email);
     if (!user) {
-      // Pay the same argon2 CPU cost as the "wrong password" path below so
-      // the two failure responses take the same amount of time — otherwise
-      // response latency leaks whether an email is registered, even though
-      // both paths throw the same error message. See SECURITY-AUDIT.md,
-      // section 4, item 1.
+      // Paga o mesmo custo de CPU do argon2 que o caminho de "senha errada"
+      // abaixo, pra que as duas respostas de falha levem o mesmo tempo — do
+      // contrário a latência vaza se o e-mail está cadastrado, mesmo com a
+      // mesma mensagem de erro nos dois casos. Ver SECURITY-AUDIT.md, seção
+      // 4, item 1.
       await verifyPassword(await getDummyPasswordHash(), credentials.password);
       throw new UnauthorizedError('Credenciais inválidas');
     }
@@ -44,21 +43,19 @@ export class IdentityService {
     const expiresAt = new Date(Date.now() + this.sessionTtlDays * 24 * 60 * 60 * 1000);
     const session = await this.repository.create(user.id, expiresAt);
 
-    // Built from the already-looked-up `user` (UserDto, from findByEmail)
-    // rather than `session.user` — same safe shape requireAuth attaches to
-    // `request.user`, but this way `passwordHash` is never even referenced
-    // as if it were part of that shape.
+    // Montado a partir do `user` já buscado (findByEmail), não de
+    // `session.user` — assim `passwordHash` nunca chega a ser referenciado
+    // como se fizesse parte do shape retornado.
     return {
       session,
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
     };
   }
 
-  // Idempotent by design: deleteById is a no-op (not an error) when the
-  // session is already gone, same as the repository's own deleteMany-based
-  // behavior (see IdentityRepository.deleteById) — logging out twice, or
-  // logging out with a session that already expired/was removed, should
-  // still succeed instead of surfacing a spurious error to the client.
+  // Idempotente por design: deleteById é um no-op (não um erro) quando a
+  // sessão já não existe — deslogar duas vezes, ou deslogar com uma sessão
+  // já expirada/removida, deve continuar retornando sucesso em vez de um
+  // erro espúrio pro cliente.
   async logout(sessionId: string): Promise<void> {
     await this.repository.deleteById(sessionId);
   }

@@ -10,11 +10,10 @@ import type {
 export class IdentityRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  // Doesn't pre-check email uniqueness with a separate lookup (findByEmail then
-  // create) — that's a check-then-act race under concurrent requests. Instead
-  // this relies on the DB's own unique constraint and translates Prisma's
-  // P2002 (unique violation) into a ConflictError, same as the repository
-  // skill's not-found translation convention.
+  // Não faz lookup prévio de unicidade de e-mail (check-then-act, gera race
+  // condition sob concorrência) — confia na constraint unique do banco e
+  // traduz o P2002 do Prisma em ConflictError, seguindo a mesma convenção de
+  // tradução de erro da skill de repository.
   async createUser(user: CreateUserDto): Promise<UserDto> {
     try {
       return await this.prisma.user.create({
@@ -29,9 +28,8 @@ export class IdentityRepository {
     }
   }
 
-  // A login attempt against a nonexistent email is a valid outcome, not an
-  // error — findX (null), not getX (NotFoundError). Includes `passwordHash`
-  // since the service needs it to verify the login attempt.
+  // Tentativa de login com e-mail inexistente é um resultado válido, não um
+  // erro — por isso findX (null), não getX (NotFoundError).
   async findByEmail(email: string): Promise<UserWithPasswordDto | null> {
     return this.prisma.user.findUnique({ where: { email } });
   }
@@ -43,10 +41,9 @@ export class IdentityRepository {
     });
   }
 
-  // "Valid" means it exists and is not expired — expired sessions are treated
-  // the same as missing ones for anyone checking whether they can authenticate
-  // with this session id (requireAuth), so this stays a findX (null), not a
-  // getX (NotFoundError).
+  // Sessão expirada é tratada como inexistente para quem verifica se pode
+  // autenticar com esse id (requireAuth) — por isso findX (null), não getX
+  // (NotFoundError).
   async findValidById(sessionId: string): Promise<SessionWithUserDto | null> {
     return this.prisma.session.findFirst({
       where: { id: sessionId, expiresAt: { gt: new Date() } },

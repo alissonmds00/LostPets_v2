@@ -1,9 +1,5 @@
 import { z } from 'zod';
 
-// Shape of a session row as the repository returns it, joined with its owning
-// user (needed by requireAuth to attach `request.user`). No request body schema
-// here yet — register/login/logout/me routes (and their body schemas) are
-// built in later tasks on top of this session infra.
 export const sessionWithUserSchema = z.object({
   id: z.string().uuid(),
   userId: z.string().uuid(),
@@ -17,16 +13,12 @@ export const sessionWithUserSchema = z.object({
   }),
 });
 
-// POST /register request body.
 export const registerUserBodySchema = z.object({
   email: z.string().email().describe('Endereço de e-mail do usuário, precisa ser único'),
   password: z.string().min(8).describe('Senha em texto plano, com no mínimo 8 caracteres'),
   name: z.string().min(1).describe('Nome completo do usuário'),
 });
 
-// Safe user shape for API responses — never includes `passwordHash`. This is
-// the general-purpose "safe user" projection (register's response, and
-// anywhere else a route needs to serialize a user).
 export const userResponseSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
@@ -35,20 +27,18 @@ export const userResponseSchema = z.object({
   createdAt: z.date(),
 });
 
-// What the repository needs to create a `User` row — already-hashed
-// password, never the plain-text one (hashing happens in the service, not
-// here). Not a request/response body schema, but still derived via Zod per
-// the dto skill (every DTO is z.infer of a schema, never hand-written).
+// Não é schema de request/response, mas ainda deriva de Zod (skill `dto`:
+// todo DTO é z.infer de um schema, nunca escrito à mão). Espera a senha já
+// hasheada — hashing acontece no service, não aqui.
 export const createUserSchema = z.object({
   email: z.string().email(),
   passwordHash: z.string(),
   name: z.string().min(1),
 });
 
-// Full user row as the repository reads it, including `passwordHash` — this
-// is the internal shape used by IdentityRepository.findByEmail so the service
-// can verify a login attempt's password. Never returned to a route/client as
-// is; the service/usecase strip `passwordHash` before building a response.
+// Shape interno usado por IdentityRepository.findByEmail pra verificar a
+// senha de um login. Nunca é retornado como está pra uma rota/cliente — o
+// service/usecase removem `passwordHash` antes de montar a resposta.
 export const userWithPasswordSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
@@ -57,14 +47,12 @@ export const userWithPasswordSchema = z.object({
   role: z.enum(['USER', 'ADMIN']),
 });
 
-// Request body for POST /api/identity/login.
 export const loginBodySchema = z.object({
   email: z.string().email().describe("User's email address"),
   password: z.string().min(1).describe("User's plaintext password"),
 });
 
-// Response body for a successful login — the safe user projection (no
-// `passwordHash`), same shape as what requireAuth attaches to `request.user`.
+// Mesmo shape que requireAuth anexa em `request.user`.
 export const loginResponseSchema = z.object({
   user: z.object({
     id: z.string().uuid(),
@@ -74,23 +62,20 @@ export const loginResponseSchema = z.object({
   }),
 });
 
-// Internal result of IdentityService.login — not a wire schema itself (no
-// route serializes this exact shape directly), composed from the session and
-// safe-user shapes above. The usecase reads `session` to set the cookie and
-// `user` to build the login response. Every DTO derives from a Zod schema
-// (see the `dto` skill), even internal/non-wire shapes like this one.
+// Não é um schema de wire em si — composto pelos shapes de sessão e de
+// usuário seguro acima. Ainda deriva de Zod (skill `dto`), mesmo sendo um
+// shape interno.
 export const loginResultSchema = z.object({
   session: sessionWithUserSchema.pick({ id: true, userId: true, expiresAt: true, createdAt: true }),
   user: sessionWithUserSchema.shape.user,
 });
 
-// Response body for GET /api/identity/me. Deliberately reuses the same
-// `{ id, email, name, role }` shape as `sessionWithUserSchema.shape.user`
-// (== AuthenticatedUserDto, what requireAuth attaches to `request.user`)
-// instead of `userResponseSchema` (which additionally has `createdAt`):
-// requireAuth never fetches `createdAt`, and `/me` only needs to echo back
-// the already-authenticated user, not re-query the repository for a field
-// nothing asked for. If a caller later needs `createdAt` here too, that's a
-// deliberate schema change (and an extra repository lookup), not a shape
-// this route already happens to have.
+// Reaproveita deliberadamente o shape `{ id, email, name, role }` de
+// `sessionWithUserSchema.shape.user` (== AuthenticatedUserDto, o que
+// requireAuth anexa a `request.user`), em vez de `userResponseSchema` (que
+// tem `createdAt` a mais): requireAuth nunca busca `createdAt`, e `/me` só
+// precisa ecoar o usuário já autenticado, sem reconsultar o repository por um
+// campo que ninguém pediu. Se algum dia precisar de `createdAt` aqui também,
+// isso é uma mudança de schema deliberada (com uma consulta extra ao
+// repository), não um shape que essa rota já tinha por acaso.
 export const meResponseSchema = sessionWithUserSchema.shape.user;

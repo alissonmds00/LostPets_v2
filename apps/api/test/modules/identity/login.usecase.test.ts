@@ -21,14 +21,13 @@ const testEnv: Env = {
   SQS_REGION: 'us-east-1',
 };
 
-// POST /login itself only goes through identityService (no requireAuth
-// preHandler), but the last test in this file logs in and then hits a
-// requireAuth-protected route with the resulting cookie — requireAuth reads
-// app.identityRepository directly (see infra/auth.ts), never identityService.
-// So identityService.login and identityRepository.findValidById are mocked
-// together here, sharing the same in-memory session store: when the mocked
-// login "creates" a session, requireAuth's mocked repository lookup can
-// actually find it afterward — see the testing skill's 2026-07-04 revision.
+// O último teste deste arquivo loga e então acessa uma rota protegida por
+// requireAuth com o cookie resultante — requireAuth lê app.identityRepository
+// diretamente, nunca identityService. Por isso identityService.login e
+// identityRepository.findValidById compartilham o mesmo store de sessão em
+// memória aqui: quando o login mockado "cria" uma sessão, o lookup mockado do
+// repository consegue encontrá-la depois (skill testing, revisão de
+// 2026-07-04).
 function buildTestApp(userId: string, userEmail: string, plainPassword: string) {
   const sessions = new Map<string, SessionWithUserDto>();
   const safeUser = { id: userId, email: userEmail, name: 'Test User', role: 'USER' as const };
@@ -96,7 +95,6 @@ describe('POST /api/identity/login', () => {
     expect(setCookie).toBeDefined();
     expect(setCookie?.httpOnly).toBe(true);
 
-    // The cookie must be valid for requireAuth to accept it later.
     const unsigned = app.unsignCookie(String(setCookie?.value));
     expect(unsigned.valid).toBe(true);
 

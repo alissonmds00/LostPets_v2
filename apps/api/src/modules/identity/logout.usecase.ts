@@ -1,15 +1,11 @@
 import type { IdentityService } from './identity.service.js';
 
-// Lives in usecases/ (outside modules/), per the usecase skill — every route
-// goes through a usecase, even a single-module flow like this one, matching
-// the same shape as loginUsecase/registerUserUsecase.
-//
-// Plain function taking the already-decorated service as a parameter, never
-// instantiating its own `new IdentityService()` — see the
-// dependency-injection skill. The route reads `request.sessionId` (attached
-// by requireAuth, see infra/auth.ts) and passes it in here; the usecase
-// doesn't touch the request/reply itself, same separation used by the other
-// identity usecases (cookie handling stays in the route).
+// Passa por usecase mesmo sendo um fluxo de um módulo só (skill usecase).
+// Função pura recebendo o service já decorado como parâmetro, nunca
+// instanciando seu próprio `new IdentityService()` (skill
+// dependency-injection). Não toca em request/reply diretamente — a rota lê
+// `request.sessionId` (anexado por requireAuth) e repassa aqui; manuseio de
+// cookie fica na rota.
 export async function logoutUsecase(
   identityService: IdentityService,
   sessionId: string,
