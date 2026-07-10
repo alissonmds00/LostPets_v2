@@ -17,7 +17,7 @@ description: >
 - Services e repositories são instanciados **exatamente uma vez**, em `apps/api/src/app.ts`, e
   decorados na instância raiz do Fastify (`app.decorate('identityRepository', ...)`,
   `app.decorate('identityService', ...)`) — **antes** de registrar qualquer plugin/módulo que
-  precise deles (`app.register(authPlugin, ...)`, `app.register(identityModule, ...)`, etc.).
+  precise deles (`app.register(authPlugin, ...)`, `app.register(identityPlugin, ...)`, etc.).
 - Decorators adicionados diretamente na instância raiz (fora de um `.register()` aninhado) são
   herdados automaticamente por todo contexto filho registrado depois — não precisa envolver isso
   com `fastify-plugin` (`fp`). Isso é o oposto do caso do `authPlugin`: lá, `fp` é necessário porque
