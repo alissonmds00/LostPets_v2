@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Lost Pets — a learning/portfolio project: a modular monolith (Node/TypeScript) for posting lost, found, and donation pet listings. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full stack rationale and [PLAN.md](PLAN.md) for the phase-by-phase build order and current status (as of 2026-07-03: only the skeleton + `/health` exist; `identity` is scaffolded but not implemented).
 
-npm workspaces monorepo: `apps/api` (Fastify, implemented) and `apps/web` (frontend, framework not yet chosen — placeholder only).
+npm workspaces monorepo: `apps/api` (Fastify) and `apps/web` (Next.js App Router, TypeScript, Tailwind CSS — scaffolded via `create-next-app`; initial screens are built but run on mock data, not yet wired to the real API).
 
 ## Commands
 
@@ -16,7 +16,9 @@ All from repo root unless noted.
 npm run dev:api        # run the API with watch mode (tsx watch src/server.ts)
 npm run build:api      # tsc build of apps/api
 npm run test:api       # vitest run (apps/api)
-npm run lint           # eslint . (whole repo, flat config)
+npm run dev:web        # run the Next.js dev server (apps/web), Turbopack, http://localhost:3000
+npm run build:web      # next build (apps/web)
+npm run lint           # eslint . (whole repo, flat config — apps/web has no separate ESLint config, it's linted by this same root config)
 npm run format         # prettier --write .
 ```
 

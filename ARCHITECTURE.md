@@ -24,7 +24,8 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
 | Moderação | `Report` com 3 status (`PENDING`/`REVIEWED`/`DISMISSED`); resolver usa um único campo `outcome` (`DISMISSED`/`REVIEWED_KEPT`/`REVIEWED_REMOVED`), nunca dois campos separados; `REVIEWED_REMOVED` reusa `PetsService.deleteListing` (o `DELETE /api/pets/:id` já existente) via `shared/usecases/resolve-report.usecase.ts`, sem um mecanismo de remoção próprio da moderação | evita duplicar a semântica de "remover anúncio" em dois lugares; `requireRole('ADMIN')` na rota de resolve já garante que a checagem dono-ou-admin de `deleteListing` sempre passa — ver skill `moderation` |
 | Paginação | offset/limit | mais simples de entender e implementar que cursor-based |
 | Testes | Vitest; nenhuma camada automatizada toca infra real (repository mocka `PrismaClient`, service mocka repository/gateway, usecase/rota mocka o service); Docker é só para dev local e QA validado manualmente | usuário quer aprender a testar, não só fazer funcionar |
-| Monorepo | npm workspaces (`apps/api`, `apps/web`) | usuário escolheu; frontend (`apps/web`) ainda não tem framework definido |
+| Monorepo | npm workspaces (`apps/api`, `apps/web`) | usuário escolheu |
+| Frontend | Next.js (App Router) + TypeScript + Tailwind CSS, scaffolded via `create-next-app`; telas iniciais construídas sobre dados mock (`apps/web/src/lib/mock/`), ainda não ligadas à API real (decidido em 2026-07-11) | App Router é o padrão atual recomendado pelo próprio Next; sem ESLint próprio no `apps/web` (`--no-linter` na criação) para manter o único `eslint.config.js` da raiz cobrindo o repo inteiro, como já era feito pra `apps/api` |
 | Deploy | Docker + docker-compose em dev; alvo AWS (S3 + provavelmente RDS) mais adiante, sem detalhar serviços ainda | 12-factor: config só via env vars, sem estado em disco fora do que é abstraído pelo storage |
 
 ## Módulos (bounded contexts)
@@ -69,7 +70,7 @@ que torna isso um monolito de fato *modular*, não apenas pastas por feature.
 
 ## Pontos em aberto (deferidos conscientemente)
 
-- Framework do frontend (`apps/web`).
+- Ligar as telas do frontend (`apps/web`) à API real — hoje rodam sobre dados mock.
 - Prefixo de versionamento de API (`/v1`).
 - Pipeline de CI (GitHub Actions).
 - Especificidades de AWS (Secrets Manager vs Parameter Store, RDS vs Aurora, ECS vs App Runner/Lambda).
