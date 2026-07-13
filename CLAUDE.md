@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Lost Pets — a learning/portfolio project: a modular monolith (Node/TypeScript) for posting lost, found, and donation pet listings. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full stack rationale and [PLAN.md](PLAN.md) for the phase-by-phase build order and current status (as of 2026-07-03: only the skeleton + `/health` exist; `identity` is scaffolded but not implemented).
+Lost Pets — a learning/portfolio project: a modular monolith (Node/TypeScript) for posting lost, found, and donation pet listings. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full stack rationale and [PLAN.md](PLAN.md) for the phase-by-phase build order and current status — `identity`, `pets`, `messaging`, and `moderation` are all implemented, each registered under `/api/<module>` (see "Request flow" below). Check PLAN.md's checkboxes for the exact current state before assuming a piece of a phase is done or missing.
 
 npm workspaces monorepo: `apps/api` (Fastify, implemented) and `apps/web` (frontend, framework not yet chosen — placeholder only).
 
@@ -31,10 +31,11 @@ npm run prisma:migrate             # create + apply a dev migration
 npm run prisma:deploy              # apply pending migrations (CI/prod)
 ```
 
-Postgres runs via Docker (`docker-compose.yml`), exposed on host port **5433** (not 5432, to avoid clashing with a local Postgres install):
+Postgres runs via Docker (`docker-compose.yml`), exposed on host port **5433** (not 5432, to avoid clashing with a local Postgres install). `docker-compose.yml` also runs LocalStack (SQS) — self-provisioning the queues this project needs via an init hook (`infra/localstack/init/`), with a healthcheck that waits for that provisioning, not just for the container to be up — and an `api` service that builds and runs the app itself:
 
 ```
-docker compose up -d postgres
+docker compose up -d postgres localstack   # host-run dev (npm run dev:api) only needs these two
+docker compose up                          # runs api too, wired to postgres/localstack by compose service name
 ```
 
 `apps/api` needs a local `.env` (see `apps/api/.env.example`) — `DATABASE_URL`, `SESSION_COOKIE_SECRET` (32+ chars, e.g. `openssl rand -base64 32`), `CORS_ORIGIN`, `STORAGE_DRIVER`, etc. Env vars are validated with Zod on boot (`infra/config/env.ts`) and the app exits immediately with a clear error if config is invalid.
@@ -56,7 +57,7 @@ Each module is internally layered `route → usecase → service → repository`
 
 `apps/api/src/infra/` is the technical/framework-plumbing layer, not a domain module: `config` (env loading), `errors` (the `AppError` hierarchy — just the error classes), the global exception handler (see below), `db` (Prisma client). The criterion for landing here is "technical, no business meaning" — not how many modules currently use it (see the `infra-placement` skill). `apps/api/src/shared/` is now only for cross-cutting *domain* concepts used by more than one module (e.g. `enums` — module-specific enums live inside their own module instead).
 
-`apps/api/src/gateways/` holds integration with external systems (today: storage/S3). Not a domain module, and not inside `shared/` — see "Gateways" below.
+`apps/api/src/gateways/` holds integration with external systems (today: storage/S3 and the SQS registration queue). Not a domain module, and not inside `shared/` — see "Gateways" and "Queues" below.
 
 ### Request flow
 
@@ -76,6 +77,10 @@ Access log only (method/url/status/duration/request-id), not a business-action a
 
 A gateway is the repository's counterpart for the outside world: the one place that talks to a given external system, with no business logic in it — just config/credentials and translating between the domain's shape and whatever that external system expects/returns. Only the service layer calls a gateway (never a route, usecase, or repository). Gateways are concrete classes, named `<service>.gateway.service.ts` in `apps/api/src/gateways/`, by default with no interface/swappable-driver layer — except when more than one provider is genuinely real (not hypothetical), in which case each provider gets its own class and a factory function picks between them, still without a formal `interface` (a structural union type is enough). `storage` is that exception today: `LocalStorageGateway` and `S3StorageGateway` (`local-storage.gateway.service.ts`, `s3-storage.gateway.service.ts`), picked by `createStorageGateway` (`storage.gateway.service.ts`) based on `STORAGE_DRIVER`. `PetsRegistrationQueueGateway` (`pets-registration-queue.gateway.service.ts`) is the default case instead: LocalStack (dev) and real SQS (prod) are the same protocol/SDK behind a different endpoint, not two genuinely different providers, so it stays a single class (endpoint from `SQS_ENDPOINT`, unset in prod).
 
+### Queues (SQS)
+
+The gateway is still the only thing that talks to SQS — neither the producer nor the consumer side imports `@aws-sdk/client-sqs` or `sqs-consumer` directly; the gateway wraps `sqs-consumer` internally and exposes only `enqueue(body)`, `startConsuming(handleMessage, onError)`, and `stopConsuming()`. There's no separate "enqueue service" role: the owning module's own service decides when/what to enqueue and calls `gateway.enqueue(...)` (e.g. `PetsService.submitListingForRegistration`). The consumer lives inside its owning module, not in `infra/` (its payload parsing/validation carries business meaning — same "business meaning → module" criterion as the `infra-placement` skill), named `<module>/<operation>.consumer.ts` exporting `start<Operation>Consumer` (e.g. `modules/pets/pets-registration.consumer.ts` → `startPetsRegistrationConsumer`). A malformed message, a schema-validation failure, or a persistence failure all `throw` inside `handleMessage` so the message is left on the queue for redelivery/DLQ rather than deleted. In dev, LocalStack (`docker-compose.yml`) simulates SQS and self-provisions the queues via an init hook (`infra/localstack/init/`). See the `queue` skill for the full convention.
+
 ### Enums
 
 Finite-value fields (status, role, type) are always an enum, with full-word values (`ACTIVE`, not `A` or `1`), never a raw string/number compared inline. If the value is a Prisma column, it's declared once in `schema.prisma` and reused everywhere else via `z.nativeEnum(...)`, wrapped in a single `<name>.enum.ts` file per enum (e.g. `shared/enums/role.enum.ts`) so the `@prisma/client` import stays contained to that one file — an explicit, scoped exception to "only the repository talks to Prisma." Non-persisted enums are declared directly with `z.enum([...] as const)`. Enums used by more than one module live in `shared/enums/`; module-specific ones live inside that module.
@@ -84,13 +89,13 @@ Finite-value fields (status, role, type) are always an enum, with full-word valu
 
 `@fastify/swagger` + `@fastify/swagger-ui`, registered in `app.ts` only outside production, using `jsonSchemaTransform` from `fastify-type-provider-zod` to turn the routes' existing Zod schemas into the OpenAPI spec — no schema duplicated just for docs. UI at `/docs`, raw spec at `/docs/json`. A route's `summary`/`description`/`tags` live inline in that route's `schema` object (not in `schemas.ts`); field-level description uses Zod's `.describe()`. No per-field example values yet (see the `swagger` skill for why and what would change that).
 
-### Auth model (identity module — not yet implemented, see PLAN.md Phase 1)
+### Auth model (identity module)
 
-Session-based, not JWT: httpOnly cookie (`@fastify/cookie`) + a `sessions` table in Postgres, password hashing via `argon2`. Authorization is a simple `role` enum (`USER`/`ADMIN`) on `User`, checked via planned `requireAuth`/`requireRole('ADMIN')` helpers — no general RBAC. CORS is configured with `credentials: true` and an explicit origin (never `*`), which is required for cookie-based auth to work cross-origin.
+Session-based, not JWT: httpOnly cookie (`@fastify/cookie`) + a `sessions` table in Postgres, password hashing via `argon2`. Authorization is a simple `role` enum (`USER`/`ADMIN`) on `User`, checked via the `requireAuth`/`requireRole('ADMIN')` hooks (`infra/auth.ts`) — no general RBAC. That plugin lives in `infra/`, not `modules/identity/`, even though it queries `IdentityRepository` for its session lookup: it's cross-cutting request middleware needed by every module with authenticated routes, not identity-exclusive business logic (see the `auth-middleware` skill). CORS is configured with `credentials: true` and an explicit origin (never `*`), which is required for cookie-based auth to work cross-origin.
 
 ### Data model conventions
 
-- Soft delete via `deletedAt` (not hard delete) on `User` and future `PetListing`, so moderation/reports can still reference removed listings.
+- Soft delete via `deletedAt` (not hard delete) on `User` and `PetListing`, so moderation/reports can still reference removed listings.
 - Geolocation is plain `lat`/`lng` columns with a distance formula in raw SQL (Prisma `$queryRaw`) — PostGIS was deliberately skipped for simplicity.
 - Pagination is offset/limit, not cursor-based.
 - Prisma schema (`apps/api/prisma/schema.prisma`) is organized in comment-delimited sections per module phase; add new models under the relevant phase section, matching the module that owns them.
