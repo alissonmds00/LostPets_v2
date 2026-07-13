@@ -19,8 +19,22 @@ services:
     image: localstack/localstack:4.12.0
     environment:
       SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-1
     ports:
       - "4566:4566"
+    volumes:
+      # Init hook: creates the queues this project needs on startup, so
+      # nobody runs `aws sqs create-queue` by hand — see skill `queue` and
+      # infra/localstack/init/01-create-queues.sh.
+      - ./infra/localstack/init:/etc/localstack/init/ready.d
+    healthcheck:
+      # Confirms both LocalStack itself and the init hook above are done —
+      # not just that the container is up.
+      test: ["CMD", "awslocal", "sqs", "get-queue-url", "--queue-name", "pets-registration", "--region", "us-east-1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   api:
     build:
@@ -30,10 +44,16 @@ services:
       - apps/api/.env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/lost_pets?schema=public
+      # apps/api/.env points SQS_ENDPOINT at localhost:4566 for host-run dev
+      # (npm run dev); inside the api container, the localstack service is
+      # only reachable by its compose service name.
+      SQS_ENDPOINT: http://localstack:4566
     ports:
       - "3001:3001"
     depends_on:
       postgres:
+        condition: service_healthy
+      localstack:
         condition: service_healthy
 
 volumes:

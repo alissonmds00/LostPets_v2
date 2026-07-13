@@ -13,7 +13,14 @@ export class PetsRegistrationQueueGatewayService {
   constructor(env: Env) {
     this.client = new SQSClient({
       region: env.SQS_REGION,
-      ...(env.SQS_ENDPOINT ? { endpoint: env.SQS_ENDPOINT } : {}),
+      // LocalStack ignores credential values but still requires the SDK to
+      // present some — without this, request signing throws
+      // CredentialsProviderError before the request ever reaches LocalStack.
+      // Real SQS in prod (no SQS_ENDPOINT) keeps using the SDK's default
+      // provider chain (IAM role, env vars, etc.) instead.
+      ...(env.SQS_ENDPOINT
+        ? { endpoint: env.SQS_ENDPOINT, credentials: { accessKeyId: 'test', secretAccessKey: 'test' } }
+        : {}),
     });
     this.queueUrl = env.SQS_QUEUE_URL;
   }
