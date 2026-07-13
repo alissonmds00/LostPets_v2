@@ -102,7 +102,7 @@ export class PetsRepository {
       Prisma.sql`status = ${status}::"PetListingStatus"`,
     ];
     if (type) conditions.push(Prisma.sql`type = ${type}::"PetListingType"`);
-    if (species) conditions.push(Prisma.sql`species = ${species}`);
+    if (species) conditions.push(Prisma.sql`species = ${species}::"PetSpecies"`);
     if (city) conditions.push(Prisma.sql`city = ${city}`);
     const whereSql = Prisma.join(conditions, ' AND ');
 

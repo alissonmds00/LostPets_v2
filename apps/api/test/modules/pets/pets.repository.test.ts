@@ -30,7 +30,7 @@ describe('PetsRepository', () => {
         type: 'LOST',
         title: 'Cachorro perdido no bairro Centro',
         description: 'Golden retriever, atende por Rex',
-        species: 'cachorro',
+        species: 'DOG',
         latitude: -23.55052,
         longitude: -46.633308,
         city: 'São Paulo',
@@ -60,7 +60,7 @@ describe('PetsRepository', () => {
         type: 'LOST',
         title: 'Cachorro perdido no bairro Centro',
         description: 'Golden retriever, atende por Rex',
-        species: 'cachorro',
+        species: 'DOG',
         latitude: -23.55052,
         longitude: -46.633308,
         city: 'São Paulo',
@@ -82,7 +82,7 @@ describe('PetsRepository', () => {
       expect(listing.id).toBeTruthy();
       expect(listing.type).toBe('LOST');
       expect(listing.title).toBe('Cachorro perdido no bairro Centro');
-      expect(listing.species).toBe('cachorro');
+      expect(listing.species).toBe('DOG');
       expect(listing.city).toBe('São Paulo');
       expect(listing.status).toBe('ACTIVE');
       expect(listing.ownerId).toBe(ownerId);
@@ -126,7 +126,7 @@ describe('PetsRepository', () => {
         type: 'FOUND',
         title: 'Gato encontrado',
         description: 'Gato preto e branco, sem coleira',
-        species: 'gato',
+        species: 'CAT',
         latitude: -22.906847,
         longitude: -43.172897,
         city: 'Rio de Janeiro',
@@ -141,7 +141,7 @@ describe('PetsRepository', () => {
         type: 'FOUND',
         title: 'Gato encontrado',
         description: 'Gato preto e branco, sem coleira',
-        species: 'gato',
+        species: 'CAT',
         latitude: -22.906847,
         longitude: -43.172897,
         city: 'Rio de Janeiro',
@@ -162,7 +162,7 @@ describe('PetsRepository', () => {
         type: 'LOST',
         title: 'Cachorro perdido',
         description: 'Golden retriever, atende por Rex',
-        species: 'cachorro',
+        species: 'DOG',
         latitude: -23.55052,
         longitude: -46.633308,
         city: 'São Paulo',
@@ -183,7 +183,7 @@ describe('PetsRepository', () => {
       const result = await repository.findMany({
         ...baseFilters,
         type: 'LOST',
-        species: 'cachorro',
+        species: 'DOG',
         city: 'São Paulo',
       });
 
@@ -195,7 +195,7 @@ describe('PetsRepository', () => {
             deletedAt: null,
             status: 'ACTIVE',
             type: 'LOST',
-            species: 'cachorro',
+            species: 'DOG',
             city: 'São Paulo',
           },
           skip: 0,
@@ -209,7 +209,7 @@ describe('PetsRepository', () => {
             deletedAt: null,
             status: 'ACTIVE',
             type: 'LOST',
-            species: 'cachorro',
+            species: 'DOG',
             city: 'São Paulo',
           },
         }),
@@ -291,7 +291,7 @@ describe('PetsRepository', () => {
         type: 'LOST',
         title: 'Cachorro perdido',
         description: 'Golden retriever, atende por Rex',
-        species: 'cachorro',
+        species: 'DOG',
         latitude: -23.55052,
         longitude: -46.633308,
         city: 'São Paulo',
@@ -327,7 +327,7 @@ describe('PetsRepository', () => {
         type: 'LOST',
         title: 'Novo título',
         description: 'Golden retriever, atende por Rex',
-        species: 'cachorro',
+        species: 'DOG',
         latitude: -23.55052,
         longitude: -46.633308,
         city: 'São Paulo',

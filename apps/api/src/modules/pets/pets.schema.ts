@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { PetListingStatus, PetListingStatusSchema, PetListingTypeSchema } from './pets.enum.js';
+import {
+  PetListingStatus,
+  PetListingStatusSchema,
+  PetListingTypeSchema,
+  PetSpeciesSchema,
+} from './pets.enum.js';
 import { RoleSchema } from '../../shared/enums/role.enum.js';
 
 // Dado vindo do usecase de criação de anúncio — ainda sem as fotos
@@ -9,7 +14,7 @@ export const createPetListingInputSchema = z.object({
   type: PetListingTypeSchema.describe('Tipo do anúncio: perdido, achado ou doação'),
   title: z.string().min(1).describe('Título do anúncio'),
   description: z.string().min(1).describe('Descrição do anúncio'),
-  species: z.string().min(1).describe('Espécie do pet, texto livre (ex: cachorro, gato)'),
+  species: PetSpeciesSchema.describe('Espécie do pet: cachorro, gato ou pássaro'),
   latitude: z.number().describe('Latitude do local do anúncio'),
   longitude: z.number().describe('Longitude do local do anúncio'),
   city: z.string().min(1).describe('Cidade do anúncio'),
@@ -68,7 +73,7 @@ export const petListingSchema = z.object({
   type: PetListingTypeSchema,
   title: z.string(),
   description: z.string(),
-  species: z.string(),
+  species: PetSpeciesSchema,
   latitude: z.number(),
   longitude: z.number(),
   city: z.string(),
@@ -91,7 +96,7 @@ export const petListingSchema = z.object({
 export const listPetsQuerySchema = z
   .object({
     type: PetListingTypeSchema.optional().describe('Filtra por tipo do anúncio'),
-    species: z.string().min(1).optional().describe('Filtra por espécie (texto livre)'),
+    species: PetSpeciesSchema.optional().describe('Filtra por espécie'),
     city: z.string().min(1).optional().describe('Filtra por cidade'),
     status: PetListingStatusSchema.optional()
       .default(PetListingStatus.ACTIVE)
@@ -140,7 +145,7 @@ export const getPetParamsSchema = z.object({
 export const updatePetBodySchema = z.object({
   title: z.string().min(1).optional().describe('Novo título do anúncio'),
   description: z.string().min(1).optional().describe('Nova descrição do anúncio'),
-  species: z.string().min(1).optional().describe('Nova espécie do pet'),
+  species: PetSpeciesSchema.optional().describe('Nova espécie do pet'),
   status: PetListingStatusSchema.optional().describe('Novo status do anúncio'),
 });
 

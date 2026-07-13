@@ -38,7 +38,7 @@ const validInput = {
   type: 'DONATION' as const,
   title: 'Filhotes para adoção',
   description: 'Ninhada de 4 filhotes, 2 meses',
-  species: 'cachorro',
+  species: 'DOG',
   latitude: -19.916681,
   longitude: -43.934493,
   city: 'Belo Horizonte',
