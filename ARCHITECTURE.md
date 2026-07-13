@@ -38,7 +38,7 @@ Sistema para divulgação de pets perdidos, encontrados e para doação. Monolit
   handler global); não é módulo de domínio, não tem lógica de negócio.
 - **`shared`** — conceitos de domínio genuinamente compartilhados entre módulos (ex: enum `Role`); não é
   módulo de domínio.
-- **`gateways`** — integração com sistemas externos (hoje: storage); não é módulo de domínio, ver skill `gateway`.
+- **`gateways`** — integração com sistemas externos (hoje: storage e a fila SQS de cadastro de pet); não é módulo de domínio, ver skills `gateway` e `queue`.
 
 **Regra dura:** cada módulo só acessa suas próprias tabelas via seu próprio repositório. Um
 service **nunca** chama o service de outro módulo — comunicação entre módulos acontece

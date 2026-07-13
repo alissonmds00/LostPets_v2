@@ -15,20 +15,20 @@ Roteiro para retomar a implementação em uma sessão futura. Ver [ARCHITECTURE.
 
 ## Fase 1 — `identity`
 
-- [ ] Modelagem já existe no `schema.prisma` (`User`, `Session`); revisar se falta algum campo antes de avançar (ex: `name` obrigatório faz sentido? confirmar com o usuário se necessário)
-- [ ] `POST /api/identity/register` — valida com Zod, verifica e-mail único, hash de senha com argon2, cria `User`
-- [ ] `POST /api/identity/login` — valida credenciais, cria `Session` no banco, seta cookie httpOnly (`SESSION_COOKIE_NAME`)
-- [ ] `POST /api/identity/logout` — apaga a `Session` correspondente, limpa o cookie
-- [ ] Plugin/hook de autenticação: lê o cookie, busca a `Session` válida (não expirada), anexa `request.user`; expor um helper `requireAuth` e `requireRole('ADMIN')` para as rotas
-- [ ] `GET /api/identity/me` — retorna o usuário autenticado (401 se não houver sessão)
-- [ ] Rate limit dedicado em `/register` e `/login` (`@fastify/rate-limit` por rota, não só global)
-- [ ] Testes: unit do hashing/validação, integração batendo nas rotas reais contra o Postgres do Docker
-- [ ] Remover a rota placeholder `GET /ping` do módulo
+- [x] Modelagem já existe no `schema.prisma` (`User`, `Session`); revisar se falta algum campo antes de avançar (ex: `name` obrigatório faz sentido? confirmar com o usuário se necessário)
+- [x] `POST /api/identity/register` — valida com Zod, verifica e-mail único, hash de senha com argon2, cria `User`
+- [x] `POST /api/identity/login` — valida credenciais, cria `Session` no banco, seta cookie httpOnly (`SESSION_COOKIE_NAME`)
+- [x] `POST /api/identity/logout` — apaga a `Session` correspondente, limpa o cookie
+- [x] Plugin/hook de autenticação: lê o cookie, busca a `Session` válida (não expirada), anexa `request.user`; expõe `requireAuth`/`requireRole('ADMIN')` (`infra/auth.ts`, cross-cutting — ver skill `auth-middleware`)
+- [x] `GET /api/identity/me` — retorna o usuário autenticado (401 se não houver sessão)
+- [x] Rate limit dedicado em `/register` e `/login` (`@fastify/rate-limit` por rota, não só global)
+- [x] Testes: unit de cada camada (repository mocka `PrismaClient`, service mocka repository, rota mocka `IdentityRepository`/`IdentityService` — ver revisão de 2026-07-04 da skill `testing`, nenhuma camada automatizada toca infra real)
+- [x] Remover a rota placeholder `GET /ping` do módulo
 
 ## Fase 2 — `pets` (+ storage)
 
-- [ ] Modelar no `schema.prisma`: `PetListing` (tipo `LOST | FOUND | DONATION`, título, descrição, espécie, lat/lng, cidade, `status` `ACTIVE | RESOLVED | CANCELLED`, `ownerId`, `deletedAt`), `PetPhoto` (chave de storage, url, ordem, `listingId`)
-- [ ] `POST /api/pets` — cria anúncio (autenticado), aceita upload via `@fastify/multipart`, valida tipo/tamanho, gera thumbnail com `sharp`, salva via `StorageGateway`; o registro em si é assíncrono — o usecase valida e publica na fila via `PetsRegistrationQueueGateway` (`enqueue-then-persist`, decidido em 2026-07-04 pra não perder cadastro se o banco estiver sobrecarregado), a rota responde 202, e um consumidor separado persiste no Postgres depois
+- [x] Modelar no `schema.prisma`: `PetListing` (tipo `LOST | FOUND | DONATION`, título, descrição, espécie, lat/lng, cidade, `status` `ACTIVE | RESOLVED | CANCELLED`, `ownerId`, `deletedAt`), `PetPhoto` (chave de storage, url, ordem, `listingId`)
+- [x] `POST /api/pets` — cria anúncio (autenticado), aceita upload via `@fastify/multipart`, valida tipo/tamanho, gera thumbnail com `sharp`, salva via `StorageGateway`; o registro em si é assíncrono — o usecase valida e publica na fila via `PetsRegistrationQueueGateway` (`enqueue-then-persist`, decidido em 2026-07-04 pra não perder cadastro se o banco estiver sobrecarregado), a rota responde 202, e um consumidor separado persiste no Postgres depois
 - [x] Consumidor da fila: `modules/pets/pets-registration.consumer.ts`, rodando dentro do próprio `apps/api` (sem `apps/worker` separado), usando `sqs-consumer` por dentro do gateway (`PetsRegistrationQueueGatewayService.startConsuming`/`stopConsuming`, decisão reaberta em 2026-07-09 — ver skill `queue`); consumidor chama `PetsService.registerListing` pra persistir, nunca grava direto na tabela
 - [x] `GET /api/pets` — lista paginada (offset/limit, default 20, máximo 100; sem filtro de status só retorna `ACTIVE`), filtros por tipo, espécie, cidade, e busca por raio (lat/lng/radiusKm juntos ou nenhum — SQL raw via Prisma `$queryRaw`, decidido com o usuário em 2026-07-09)
 - [x] `GET /api/pets/:id`, `PATCH /api/pets/:id` (só o dono), `DELETE /api/pets/:id` (soft delete, dono ou admin)
