@@ -67,12 +67,18 @@ enum PetListingStatus {
   CANCELLED
 }
 
+enum PetSpecies {
+  DOG
+  CAT
+  BIRD
+}
+
 model PetListing {
   id          String           @id @default(uuid())
   type        PetListingType
   title       String
   description String
-  species     String
+  species     PetSpecies
   latitude    Float
   longitude   Float
   city        String
